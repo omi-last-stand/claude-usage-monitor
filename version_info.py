@@ -15,7 +15,7 @@ VSVersionInfo(
             StringTable(
                 '040904B0',  # Lang: US English, Charset: Unicode
                 [
-                    StringStruct('CompanyName', 'Jens Duttke'),
+                    StringStruct('CompanyName', 'omi-last-stand'),
                     StringStruct('FileDescription', 'Claude Usage Monitor'),
                     StringStruct('FileVersion', '1.0.0.0'),
                     StringStruct('InternalName', 'ClaudeUsageMonitor'),
