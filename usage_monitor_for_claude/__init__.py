@@ -1,6 +1,6 @@
 """
-Usage Monitor for Claude
-=========================
+Claude Usage Monitor
+====================
 
 Displays the current Claude.ai usage as a system tray icon.
 Left-click the icon to see a detailed usage popup.

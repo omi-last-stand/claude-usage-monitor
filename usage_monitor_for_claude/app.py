@@ -696,4 +696,4 @@ class UsageMonitorForClaude:
 
 def crash_log(msg: str) -> None:
     """Show a crash message box (for windowless EXE builds)."""
-    ctypes.windll.user32.MessageBoxW(0, msg[:2000], 'Usage Monitor for Claude - Error', 0x10)
+    ctypes.windll.user32.MessageBoxW(0, msg[:2000], 'Claude Usage Monitor - Error', 0x10)
