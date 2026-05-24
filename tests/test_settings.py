@@ -248,26 +248,6 @@ class TestSettingsOverrides(unittest.TestCase):
             ('alert_thresholds_five_hour', [80]),
         ], absent=['alert_thresholds_seven_day'])
 
-    def test_icon_color_override(self):
-        """Icon color dicts are merged, JSON arrays become tuples."""
-        settings = {'icon_light': {'fg': [0, 255, 0, 255]}}
-        with TemporaryDirectory() as app_tmp, TemporaryDirectory() as home_tmp:
-            (Path(app_tmp) / settings_mod.SETTINGS_FILENAME).write_text(json.dumps(settings), encoding='utf-8')
-            loaded = _load(Path(app_tmp), Path(home_tmp))
-
-        original_S = settings_mod._S
-        try:
-            settings_mod._S = loaded
-            icon_light = settings_mod._icon_colors('icon_light', {
-                'fg': (255, 255, 255, 255), 'fg_half': (255, 255, 255, 80), 'fg_dim': (255, 255, 255, 140),
-            })
-        finally:
-            settings_mod._S = original_S
-
-        self.assertEqual(icon_light['fg'], (0, 255, 0, 255))
-        self.assertEqual(icon_light['fg_half'], (255, 255, 255, 80))
-        self.assertEqual(icon_light['fg_dim'], (255, 255, 255, 140))
-
     def _assert_overrides(self, settings: dict, expected: list[tuple[str, object]], absent: list[str] | None = None) -> None:
         """Load settings and verify overridden keys have expected values.
 
@@ -297,7 +277,7 @@ class TestSettingsValidation(unittest.TestCase):
 
     def test_valid_settings_no_message_box(self):
         """Valid settings pass through without MessageBox."""
-        data = {'poll_interval': 300, 'bg': '#000', 'icon_light': {'fg': [0, 255, 0, 255]}}
+        data = {'poll_interval': 300, 'bg': '#000'}
         result, mock = self._run_validate(data)
         self.assertEqual(result, data)
         mock.windll.user32.MessageBoxW.assert_not_called()
@@ -333,43 +313,6 @@ class TestSettingsValidation(unittest.TestCase):
         """Non-string value for color key is dropped."""
         result, _ = self._run_validate({'bg': 42})
         self.assertNotIn('bg', result)
-
-    def test_non_dict_icon(self):
-        """Non-dict value for icon key is dropped."""
-        result, _ = self._run_validate({'icon_light': 'invalid'})
-        self.assertNotIn('icon_light', result)
-
-    def test_icon_invalid_rgba_length(self):
-        """Icon color with wrong array length is dropped."""
-        result, _ = self._run_validate({'icon_light': {'fg': [255, 255]}})
-        self.assertNotIn('fg', result['icon_light'])
-
-    def test_icon_rgba_out_of_range(self):
-        """Icon color with value > 255 is dropped."""
-        result, _ = self._run_validate({'icon_dark': {'fg': [0, 256, 0, 255]}})
-        self.assertNotIn('fg', result['icon_dark'])
-
-    def test_icon_rgba_negative(self):
-        """Icon color with negative value is dropped."""
-        result, _ = self._run_validate({'icon_dark': {'fg': [0, -1, 0, 255]}})
-        self.assertNotIn('fg', result['icon_dark'])
-
-    def test_icon_rgba_with_float(self):
-        """Icon color with float values is dropped (must be int)."""
-        result, _ = self._run_validate({'icon_light': {'fg': [0.0, 255, 0, 255]}})
-        self.assertNotIn('fg', result['icon_light'])
-
-    def test_icon_rgba_with_bool(self):
-        """Icon color with boolean values is dropped."""
-        result, _ = self._run_validate({'icon_light': {'fg': [True, 0, 0, 255]}})
-        self.assertNotIn('fg', result['icon_light'])
-
-    def test_icon_valid_and_invalid_mixed(self):
-        """Valid icon sub-entries kept, invalid ones dropped."""
-        data = {'icon_light': {'fg': [0, 255, 0, 255], 'fg_half': [255, 255]}}
-        result, _ = self._run_validate(data)
-        self.assertEqual(result['icon_light']['fg'], [0, 255, 0, 255])
-        self.assertNotIn('fg_half', result['icon_light'])
 
     def test_unknown_keys_pass_through(self):
         """Unknown keys are not validated or removed."""
@@ -609,119 +552,6 @@ class TestSettingsValidation(unittest.TestCase):
         with patch.object(settings_mod, 'ctypes', mock_ctypes):
             result = settings_mod._validate(dict(data), Path('/fake/settings.json'))
         return result, mock_ctypes
-
-
-class TestIconFieldsValidation(unittest.TestCase):
-    """Tests for icon_fields setting validation."""
-
-    def _run_validate(self, data: dict) -> tuple[dict, MagicMock]:
-        """Run _validate with mocked ctypes and return (result, mock_ctypes)."""
-        mock_ctypes = MagicMock()
-        with patch.object(settings_mod, 'ctypes', mock_ctypes):
-            result = settings_mod._validate(dict(data), Path('/fake/settings.json'))
-        return result, mock_ctypes
-
-    def test_valid_two_strings(self):
-        """Valid array of exactly 2 non-empty strings passes through."""
-        result, mock = self._run_validate({'icon_fields': ['five_hour', 'seven_day_sonnet']})
-        self.assertEqual(result['icon_fields'], ['five_hour', 'seven_day_sonnet'])
-        mock.windll.user32.MessageBoxW.assert_not_called()
-
-    def test_not_array_dropped(self):
-        """Non-array value is dropped."""
-        result, mock = self._run_validate({'icon_fields': 'five_hour'})
-        self.assertNotIn('icon_fields', result)
-        mock.windll.user32.MessageBoxW.assert_called_once()
-
-    def test_one_entry_dropped(self):
-        """Array with only one entry is dropped."""
-        result, mock = self._run_validate({'icon_fields': ['five_hour']})
-        self.assertNotIn('icon_fields', result)
-        mock.windll.user32.MessageBoxW.assert_called_once()
-
-    def test_three_entries_dropped(self):
-        """Array with three entries is dropped."""
-        result, mock = self._run_validate({'icon_fields': ['a', 'b', 'c']})
-        self.assertNotIn('icon_fields', result)
-        mock.windll.user32.MessageBoxW.assert_called_once()
-
-    def test_empty_array_dropped(self):
-        """Empty array is dropped."""
-        result, mock = self._run_validate({'icon_fields': []})
-        self.assertNotIn('icon_fields', result)
-        mock.windll.user32.MessageBoxW.assert_called_once()
-
-    def test_non_string_entry_dropped(self):
-        """Array with non-string entry is dropped."""
-        result, mock = self._run_validate({'icon_fields': ['five_hour', 42]})
-        self.assertNotIn('icon_fields', result)
-        mock.windll.user32.MessageBoxW.assert_called_once()
-
-    def test_empty_string_entry_dropped(self):
-        """Array with empty string entry is dropped."""
-        result, mock = self._run_validate({'icon_fields': ['five_hour', '']})
-        self.assertNotIn('icon_fields', result)
-        mock.windll.user32.MessageBoxW.assert_called_once()
-
-    def test_unknown_field_names_accepted(self):
-        """Unknown field names are not rejected."""
-        result, mock = self._run_validate({'icon_fields': ['future_field', 'another_field']})
-        self.assertEqual(result['icon_fields'], ['future_field', 'another_field'])
-        mock.windll.user32.MessageBoxW.assert_not_called()
-
-    def test_bool_entry_dropped(self):
-        """Array with boolean entry is dropped."""
-        result, mock = self._run_validate({'icon_fields': [True, 'five_hour']})
-        self.assertNotIn('icon_fields', result)
-        mock.windll.user32.MessageBoxW.assert_called_once()
-
-    def test_valid_mode_suffix_utilization(self):
-        """Field with ':utilization' suffix is accepted."""
-        result, mock = self._run_validate({'icon_fields': ['five_hour:utilization', 'seven_day']})
-        self.assertEqual(result['icon_fields'], ['five_hour:utilization', 'seven_day'])
-        mock.windll.user32.MessageBoxW.assert_not_called()
-
-    def test_valid_mode_suffix_overage(self):
-        """Field with ':overage' suffix is accepted."""
-        result, mock = self._run_validate({'icon_fields': ['five_hour:overage', 'seven_day:overage']})
-        self.assertEqual(result['icon_fields'], ['five_hour:overage', 'seven_day:overage'])
-        mock.windll.user32.MessageBoxW.assert_not_called()
-
-    def test_invalid_mode_suffix_dropped(self):
-        """Field with unknown mode suffix is dropped."""
-        result, mock = self._run_validate({'icon_fields': ['five_hour:bogus', 'seven_day']})
-        self.assertNotIn('icon_fields', result)
-        mock.windll.user32.MessageBoxW.assert_called_once()
-
-    def test_mixed_valid_and_invalid_mode_dropped(self):
-        """Any invalid mode suffix causes the entire icon_fields to be dropped."""
-        result, mock = self._run_validate({'icon_fields': ['five_hour:overage', 'seven_day:invalid']})
-        self.assertNotIn('icon_fields', result)
-        mock.windll.user32.MessageBoxW.assert_called_once()
-
-    def test_mode_suffix_on_unknown_field_accepted(self):
-        """Valid mode suffix on unknown field name is accepted."""
-        result, mock = self._run_validate({'icon_fields': ['future_field:overage', 'another:utilization']})
-        self.assertEqual(result['icon_fields'], ['future_field:overage', 'another:utilization'])
-        mock.windll.user32.MessageBoxW.assert_not_called()
-
-
-class TestIconFieldsDefault(unittest.TestCase):
-    """Tests for ICON_FIELDS default value."""
-
-    def test_default_without_settings(self):
-        """Default icon_fields is ['five_hour', 'seven_day'] when no settings file exists."""
-        with TemporaryDirectory() as app_tmp, TemporaryDirectory() as home_tmp:
-            loaded = _load(Path(app_tmp), Path(home_tmp))
-        self.assertNotIn('icon_fields', loaded)
-
-    def test_override_from_settings(self):
-        """icon_fields is loaded from settings file."""
-        with TemporaryDirectory() as app_tmp, TemporaryDirectory() as home_tmp:
-            settings = {'icon_fields': ['seven_day', 'five_hour']}
-            (Path(app_tmp) / settings_mod.SETTINGS_FILENAME).write_text(json.dumps(settings), encoding='utf-8')
-            loaded = _load(Path(app_tmp), Path(home_tmp))
-        self.assertEqual(loaded['icon_fields'], ['seven_day', 'five_hour'])
 
 
 class TestTooltipFieldsValidation(unittest.TestCase):

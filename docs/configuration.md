@@ -87,43 +87,6 @@ Must be an array of non-empty strings. `"*"` may appear at most once. Duplicates
 }
 ```
 
-## Tray icon bars
-
-The tray icon displays two small progress bars. By default, these show the session (5h) and weekly (7d) quotas. Use `icon_fields` to choose which two API fields are displayed.
-
-| Key | Default | Description |
-|-----|---------|-------------|
-| `icon_fields` | `["five_hour", "seven_day"]` | Which two usage fields to show as icon bars. The first entry is the top bar (also determines the icon text), the second is the bottom bar |
-
-Must be an array of exactly 2 non-empty strings. Unknown field names are accepted - if a field is `null` or missing from the API response, the bar shows 0%.
-
-**Known field names:** `five_hour`, `seven_day`, `seven_day_sonnet`, `seven_day_opus`, `seven_day_cowork`, `seven_day_oauth_apps`
-
-Each entry can optionally include a display mode suffix using colon syntax: `"field_name:mode"`.
-
-**Available bar display modes:**
-
-| Mode | Description |
-|------|-------------|
-| `utilization` | *(default)* Fills left-to-right proportional to current usage |
-| `overage` | Shows how far usage has entered the over-budget zone: empty when usage is at or below the time marker (on pace or ahead), half-filled when usage is halfway between the time marker and 100%, full when usage reaches 100% |
-
-**Example** - show session in overage mode and weekly in default mode:
-
-```json
-{
-    "icon_fields": ["five_hour:overage", "seven_day"]
-}
-```
-
-**Example** - show session and Sonnet quota (default utilization mode):
-
-```json
-{
-    "icon_fields": ["five_hour", "seven_day_sonnet"]
-}
-```
-
 ## Event commands
 
 Run a shell command when a usage event occurs. See [Event Commands](event-commands.md) for examples and available environment variables.
@@ -151,7 +114,7 @@ Run a shell command when a usage event occurs. See [Event Commands](event-comman
 |-----|---------|-------------|
 | `language` | *(auto-detected)* | Override the UI language with a language code. Available: `de`, `en`, `es`, `fr`, `hi`, `id`, `it`, `ja`, `ko`, `pt-BR`, `uk`, `zh-CN`, `zh-TW` |
 
-In widget mode you can also pick the language from the **Settings** window (right-click the widget). That choice is saved to `ClaudeUsageMonitor.ini` and takes precedence over this JSON key; both fall back to the detected system locale. A language change takes effect after a restart.
+You can also pick the language from the **Settings** window (right-click the widget); the app restarts automatically to apply the new language. That choice is saved to `ClaudeUsageMonitor.ini` and takes precedence over this JSON key; both fall back to the detected system locale.
 
 ## Currency
 
@@ -160,21 +123,6 @@ The Anthropic API does not include currency information, so the app detects the 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `currency_symbol` | *(auto-detected)* | Override the auto-detected currency symbol (e.g., `"$"`, `"€"`, `"¥"`) |
-
-## Tray icon
-
-By default the tray icon uses light-colored glyphs, which suit a dark taskbar. If your taskbar is light, set `light_taskbar` to switch to dark glyphs. There is no automatic taskbar-theme detection - you choose with this setting.
-
-| Key | Default | Description |
-|-----|---------|-------------|
-| `light_taskbar` | `false` | `true` if your Windows taskbar is light - the icon then uses the dark glyph set (`icon_dark`); `false` uses the light set (`icon_light`) for a dark taskbar |
-
-Override individual icon color channels as RGBA arrays `[R, G, B, A]` (0-255). Unspecified keys keep their defaults.
-
-| Key | Default | Description |
-|-----|---------|-------------|
-| `icon_light` | `{"fg": [255,255,255,255], "fg_half": [255,255,255,80], "fg_dim": [255,255,255,140]}` | Light glyphs, used when `light_taskbar` is `false` (dark taskbar) |
-| `icon_dark` | `{"fg": [0,0,0,255], "fg_half": [0,0,0,80], "fg_dim": [0,0,0,140]}` | Dark glyphs, used when `light_taskbar` is `true` (light taskbar) |
 
 ## Popup colors
 
@@ -193,11 +141,6 @@ Override individual icon color channels as RGBA arrays `[R, G, B, A]` (0-255). U
 
 ## Widget
 
-Run the monitor as a resident, always-on-top desktop widget in addition to the tray icon.
+The monitor runs as a resident, always-on-top desktop widget. Click it to toggle the compact/expanded view; right-click for its menu (always on top, settings, about, quit).
 
-| Key | Default | Description |
-|-----|---------|-------------|
-| `widget_mode` | `true` | On by default: the app runs as a resident always-on-top widget. Click it to toggle the compact/expanded view; right-click for its menu (always on top, settings, about, quit). Set `false` for the classic tray-icon popup. |
-| `widget_hide_account` | `false` | `true` hides the account row (email and plan) in the widget |
-
-In widget mode the window position, the always-on-top state, and the per-field show / collapse / hide configuration are saved to `ClaudeUsageMonitor.ini` next to the EXE (managed through the widget's **Settings** window), not in this JSON file.
+Which blocks appear - the account row, each usage bar, the extra-usage bar, the Claude Code versions, and the status line - and their order are chosen in the widget's **Settings** window (show / collapse / hide, with drag-to-reorder), not in this JSON file. The window position, the always-on-top state, the compact/expanded view, and that per-block configuration are saved to `ClaudeUsageMonitor.ini` next to the EXE.

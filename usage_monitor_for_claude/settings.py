@@ -28,12 +28,11 @@ __all__ = [
     'BAR_BG', 'BAR_FG', 'BAR_FG_WARN', 'BAR_MARKER', 'BG',
     'CURRENCY_SYMBOL',
     'FG', 'FG_DIM', 'FG_HEADING', 'FG_LINK',
-    'ICON_DARK', 'ICON_FIELDS', 'ICON_LIGHT', 'IDLE_PAUSE',
-    'LANGUAGE', 'LIGHT_TASKBAR', 'MAX_BACKOFF',
+    'IDLE_PAUSE',
+    'LANGUAGE', 'MAX_BACKOFF',
     'ON_RESET_COMMAND', 'ON_STARTUP_COMMAND', 'ON_THRESHOLD_COMMAND',
     'POLL_ERROR', 'POLL_FAST', 'POLL_FAST_EXTRA', 'POLL_INTERVAL',
     'POPUP_FIELDS', 'SETTINGS_FILENAME', 'TOOLTIP_FIELDS',
-    'WIDGET_HIDE_ACCOUNT', 'WIDGET_MODE',
     'get_alert_thresholds',
 ]
 
@@ -48,15 +47,13 @@ _NUMERIC_BOUNDS: dict[str, int] = {
     'idle_pause': 0,
 }
 _COLOR_KEYS = frozenset({'bg', 'fg', 'fg_dim', 'fg_heading', 'fg_link', 'bar_bg', 'bar_fg', 'bar_fg_warn', 'bar_divider', 'bar_marker'})
-_ICON_KEYS = frozenset({'icon_light', 'icon_dark'})
 _THRESHOLD_KEY_PREFIX = 'alert_thresholds_'
 _PERCENT_KEYS = frozenset({'alert_time_aware_below'})
 _STRING_KEYS = frozenset({'currency_symbol', 'language'})
 _COMMAND_KEYS = frozenset({'on_reset_command', 'on_startup_command', 'on_threshold_command'})
-_BOOL_KEYS = frozenset({'alert_time_aware', 'widget_mode', 'widget_hide_account', 'light_taskbar'})
+_BOOL_KEYS = frozenset({'alert_time_aware'})
 _STRING_LIST_KEYS = frozenset({'tooltip_fields'})
 _WILDCARD_STRING_LIST_KEYS = frozenset({'popup_fields'})
-_VALID_BAR_MODES = frozenset({'utilization', 'overage'})
 
 
 def _load_settings() -> dict:
@@ -94,14 +91,6 @@ def _load_settings() -> dict:
                 return {}
 
     return {}
-
-
-def _valid_rgba(value: object) -> bool:
-    """Return True if *value* is a list of exactly 4 integers in 0\u2013255."""
-    return (
-        isinstance(value, list) and len(value) == 4
-        and all(isinstance(c, int) and not isinstance(c, bool) and 0 <= c <= 255 for c in value)
-    )
 
 
 def _validate(data: dict, path: Path) -> dict:
@@ -200,38 +189,6 @@ def _validate(data: dict, path: Path) -> dict:
                         deduped_wc.append(item)
                 data[key] = deduped_wc
 
-        elif key == 'icon_fields':
-            if not isinstance(value, list):
-                errors.append(f'  {key}: expected an array, got {type(value).__name__}')
-                drop.append(key)
-            elif len(value) != 2:
-                errors.append(f'  {key}: expected exactly 2 entries, got {len(value)}')
-                drop.append(key)
-            elif any(not isinstance(item, str) or not item for item in value):
-                errors.append(f'  {key}: all entries must be non-empty strings')
-                drop.append(key)
-            else:
-                invalid_modes = [
-                    item for item in value
-                    if ':' in item and item.split(':', 1)[1] not in _VALID_BAR_MODES
-                ]
-                if invalid_modes:
-                    errors.append(
-                        f'  {key}: unknown bar mode in: {", ".join(invalid_modes)}'
-                        f' (valid: {", ".join(sorted(_VALID_BAR_MODES))})'
-                    )
-                    drop.append(key)
-
-        elif key in _ICON_KEYS:
-            if not isinstance(value, dict):
-                errors.append(f'  {key}: expected an object, got {type(value).__name__}')
-                drop.append(key)
-            else:
-                bad = [k for k, v in value.items() if not _valid_rgba(v)]
-                for k in bad:
-                    errors.append(f'  {key}.{k}: expected [R, G, B, A] with integers 0\u2013255')
-                    del value[k]
-
     for key in drop:
         del data[key]
 
@@ -242,12 +199,6 @@ def _validate(data: dict, path: Path) -> dict:
         )
 
     return data
-
-
-def _icon_colors(key: str, defaults: dict[str, tuple]) -> dict[str, tuple]:
-    """Merge icon color overrides from settings, converting JSON arrays to tuples."""
-    overrides = _S.get(key, {})
-    return {k: tuple(overrides[k]) if k in overrides else v for k, v in defaults.items()}
 
 
 _S = _load_settings()
@@ -272,36 +223,11 @@ BAR_FG_WARN = _S.get('bar_fg_warn', '#e05050')
 BAR_DIVIDER = _S.get('bar_divider', '#000c')
 BAR_MARKER = _S.get('bar_marker', '#fffc')
 
-# Tray icon colors
-ICON_LIGHT = _icon_colors('icon_light', {
-    'fg': (255, 255, 255, 255),
-    'fg_half': (255, 255, 255, 80),
-    'fg_dim': (255, 255, 255, 140),
-})
-ICON_DARK = _icon_colors('icon_dark', {
-    'fg': (0, 0, 0, 255),
-    'fg_half': (0, 0, 0, 80),
-    'fg_dim': (0, 0, 0, 140),
-})
-
-# Tray icon fields
-ICON_FIELDS: list[str] = _S.get('icon_fields', ['five_hour', 'seven_day'])
-
 # Tooltip fields
 TOOLTIP_FIELDS: list[str] = _S.get('tooltip_fields', ['five_hour', 'seven_day'])
 
 # Popup fields
 POPUP_FIELDS: list[str] = _S.get('popup_fields', ['*'])
-
-# Widget mode: always-on-top resident widget that toggles compact/expanded on click.
-# On by default - it is this fork's primary mode; set widget_mode false for the
-# classic upstream-style tray icon plus dismissable popup.
-WIDGET_MODE: bool = _S.get('widget_mode', True)
-WIDGET_HIDE_ACCOUNT: bool = _S.get('widget_hide_account', False)
-
-# Tray icon color theme (replaces registry-based auto-detection).
-# True = dark icon for a light taskbar; False = light icon for a dark taskbar.
-LIGHT_TASKBAR: bool = _S.get('light_taskbar', False)
 
 # Alert thresholds
 ALERT_TIME_AWARE: bool = _S.get('alert_time_aware', True)

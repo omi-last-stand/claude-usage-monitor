@@ -24,7 +24,7 @@ from typing import NamedTuple
 __all__ = [
     'FIELD_COLLAPSED', 'FIELD_HIDDEN', 'FIELD_VISIBLE', 'VALID_FIELD_STATES',
     'WidgetState', 'ini_path', 'load_language', 'load_widget_state', 'save_always_on_top',
-    'save_field_config', 'save_language', 'save_window_position',
+    'save_expanded', 'save_field_config', 'save_language', 'save_window_position',
 ]
 
 FIELD_VISIBLE = 'visible'
@@ -56,12 +56,16 @@ class WidgetState(NamedTuple):
     always_on_top : bool or None
         Last saved always-on-top preference, or None when unset (the app
         then falls back to its default).
+    expanded : bool or None
+        Last saved expanded-view preference, or None when unset (the app
+        then starts in the compact view).
     """
 
     window_x: int | None
     window_y: int | None
     field_states: dict[str, str]
     always_on_top: bool | None = None
+    expanded: bool | None = None
 
 
 def ini_path() -> Path:
@@ -111,13 +115,18 @@ def load_widget_state() -> WidgetState:
     except ValueError:
         always_on_top = None
 
+    try:
+        expanded = parser.getboolean(_WIDGET_SECTION, 'expanded', fallback=None)
+    except ValueError:
+        expanded = None
+
     field_states: dict[str, str] = {}
     if parser.has_section(_FIELDS_SECTION):
         for key, value in parser.items(_FIELDS_SECTION):
             if value in VALID_FIELD_STATES:
                 field_states[key] = value
 
-    return WidgetState(window_x, window_y, field_states, always_on_top)
+    return WidgetState(window_x, window_y, field_states, always_on_top, expanded)
 
 
 def _write(parser: configparser.ConfigParser) -> None:
@@ -149,6 +158,16 @@ def save_always_on_top(value: bool) -> None:
         if not parser.has_section(_WIDGET_SECTION):
             parser.add_section(_WIDGET_SECTION)
         parser.set(_WIDGET_SECTION, 'always_on_top', 'true' if value else 'false')
+        _write(parser)
+
+
+def save_expanded(value: bool) -> None:
+    """Persist the compact/expanded view state, preserving other settings."""
+    with _LOCK:
+        parser = _read()
+        if not parser.has_section(_WIDGET_SECTION):
+            parser.add_section(_WIDGET_SECTION)
+        parser.set(_WIDGET_SECTION, 'expanded', 'true' if value else 'false')
         _write(parser)
 
 

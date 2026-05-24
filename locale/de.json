@@ -1,4 +1,5 @@
 {
+    "status_label": "Status",
     "popup_title": "Claude Usage Monitor",
     "settings_language": "Sprache",
     "settings_language_system": "Systemstandard",
@@ -15,7 +16,6 @@
     "settings_empty": "Elemente erscheinen hier, sobald Nutzungsdaten abgerufen wurden.",
     "about_description": "Ein dauerhaftes Widget, das deine Claude-Nutzung im Blick behält.",
     "about_acknowledgement": "Basiert auf dem großartigen Usage Monitor for Claude von Jens Duttke. Mit aufrichtigem Dank.",
-    "menu_show": "Claude-Nutzung anzeigen",
     "tooltip_title": "Claude-Nutzung",
     "account": "KONTO",
     "usage": "NUTZUNG",
@@ -26,7 +26,6 @@
     "quit": "Beenden",
     "autostart": "Mit Windows starten",
     "restart": "Neu starten",
-    "menu_project": "Projekt auf GitHub",
     "test_commands": "Ereignisbefehle testen",
     "test_reset_5h": "Reset (5-Stunden)",
     "test_reset_7d": "Reset (7-Tage)",

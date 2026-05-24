@@ -1,4 +1,5 @@
 {
+    "status_label": "स्थिति",
     "popup_title": "Claude Usage Monitor",
     "settings_language": "भाषा",
     "settings_language_system": "सिस्टम डिफ़ॉल्ट",
@@ -15,7 +16,6 @@
     "settings_empty": "उपयोग डेटा प्राप्त होने पर आइटम यहाँ दिखाई देंगे।",
     "about_description": "एक स्थायी विजेट जो आपके Claude उपयोग को स्क्रीन पर बनाए रखता है।",
     "about_acknowledgement": "Jens Duttke के शानदार Usage Monitor for Claude पर आधारित। हार्दिक आभार के साथ।",
-    "menu_show": "Claude उपयोग दिखाएं",
     "tooltip_title": "Claude उपयोग",
     "account": "खाता",
     "usage": "उपयोग",
@@ -26,7 +26,6 @@
     "quit": "बंद करें",
     "autostart": "Windows के साथ शुरू करें",
     "restart": "पुनः आरंभ करें",
-    "menu_project": "GitHub पर प्रोजेक्ट",
     "test_commands": "इवेंट कमांड परीक्षण",
     "test_reset_5h": "रीसेट (5-घंटा)",
     "test_reset_7d": "रीसेट (7-दिन)",

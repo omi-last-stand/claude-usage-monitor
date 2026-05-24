@@ -1,4 +1,5 @@
 {
+    "status_label": "Стан",
     "popup_title": "Claude Usage Monitor",
     "settings_language": "Мова",
     "settings_language_system": "Системна",
@@ -15,7 +16,6 @@
     "settings_empty": "Елементи зʼявляться тут після отримання даних про використання.",
     "about_description": "Резидентний віджет, що тримає ваше використання Claude на екрані.",
     "about_acknowledgement": "Створено на основі чудового Usage Monitor for Claude від Jens Duttke. Зі щирою вдячністю.",
-    "menu_show": "Показати використання Claude",
     "tooltip_title": "Використання Claude",
     "account": "АКАУНТ",
     "usage": "ВИКОРИСТАННЯ",
@@ -26,7 +26,6 @@
     "quit": "Вийти",
     "autostart": "Запускати з Windows",
     "restart": "Перезапустити",
-    "menu_project": "Проект на GitHub",
     "test_commands": "Тестувати команди подій",
     "test_reset_5h": "Скидання (5-годин)",
     "test_reset_7d": "Скидання (7-днів)",

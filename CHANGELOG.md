@@ -15,14 +15,12 @@ First release of the fork, based on Usage Monitor for Claude (upstream v1.15.1).
 
 ### Added
 
-- Resident always-on-top widget, on by default: the app runs as a widget that stays on screen instead of dismissing (set `widget_mode: false` for the classic tray-icon popup)
-- Compact view with click-to-expand, drag-to-move, and a remembered window position (restored next launch; off-screen coordinates are auto-corrected; the first run opens centered)
+- Resident always-on-top widget: the app runs as a widget that stays on screen instead of dismissing
+- Compact view with click-to-expand and drag-to-move; the window position and the compact/expanded view are remembered and restored next launch (off-screen coordinates are auto-corrected; the first run opens centered and compact)
 - Right-click widget menu: always-on-top toggle, settings, about, quit
-- Settings window to choose which usage fields are shown - per field show / collapse (hidden in the compact view, shown when expanded) / hide - with drag-to-reorder
-- Language selector in the settings window (system default plus all 13 languages)
+- Settings window to choose which blocks are shown and in what order - the account row, each usage bar, the extra-usage bar, the Claude Code versions, and the status line - each with show / collapse (shown only when expanded) / hide and drag-to-reorder
+- Language selector in the settings window (system default plus all 13 languages); the app restarts automatically to apply the new language
 - About dialog with clickable links (a native Win32 task dialog)
-- `widget_hide_account` setting to hide the account row in the widget
-- `light_taskbar` setting to choose the tray icon glyph color (replaces the removed registry-based theme detection)
 
 ### Changed
 
@@ -30,5 +28,6 @@ First release of the fork, based on Usage Monitor for Claude (upstream v1.15.1).
 - Widget state is stored in `ClaudeUsageMonitor.ini` next to the executable (optional advanced settings remain in `usage-monitor-settings.json`); the app no longer uses the Windows Registry
 - Autostart ("Start with Windows") now uses a Startup-folder shortcut instead of a registry entry
 - The widget UI (right-click menu, settings window, about dialog) is fully localized across all 13 languages
+- The system-tray icon is a fixed brand mark (the resident widget shows live usage); upstream's dynamic gauge icon and its `icon_fields` / `light_taskbar` / `icon_light` / `icon_dark` settings were removed
 
 [Show all code changes](https://github.com/omi-last-stand/claude-usage-monitor/releases/tag/v1.0.0)

@@ -23,9 +23,9 @@ from . import __version__
 from .claude_cli import CHANGELOG_URL, find_installations
 from .formatting import elapsed_pct, expand_popup_fields, field_period, format_credits, midnight_positions, popup_label, time_until
 from .i18n import T
-from .settings import BAR_BG, BAR_DIVIDER, BAR_FG, BAR_FG_WARN, BAR_MARKER, BG, FG, FG_DIM, FG_HEADING, FG_LINK, POPUP_FIELDS, WIDGET_HIDE_ACCOUNT, WIDGET_MODE
+from .settings import BAR_BG, BAR_DIVIDER, BAR_FG, BAR_FG_WARN, BAR_MARKER, BG, FG, FG_DIM, FG_HEADING, FG_LINK, POPUP_FIELDS
 from .task_dialog import show_info_dialog
-from .widget_state import FIELD_HIDDEN, FIELD_VISIBLE, load_language, load_widget_state, save_always_on_top, save_field_config, save_language, save_window_position
+from .widget_state import FIELD_COLLAPSED, FIELD_HIDDEN, FIELD_VISIBLE, load_language, load_widget_state, save_always_on_top, save_expanded, save_field_config, save_language, save_window_position
 
 _POPUP_DIR = Path(__file__).parent / 'popup'
 _BASELINE_DPI = 96
@@ -89,6 +89,77 @@ def resolve_field_order(
     return ordered
 
 
+# The non-usage-bar blocks, in their default order relative to the usage bars
+# (which sit between 'account' and 'extra_usage').
+_PSEUDO_BLOCKS = ('account', 'extra_usage', 'installations', 'status')
+
+
+def _default_block_state(key: str) -> str:
+    """Usage bars default to visible; account/extra/version/status blocks to collapsed."""
+    return FIELD_COLLAPSED if key in _PSEUDO_BLOCKS else FIELD_VISIBLE
+
+
+def resolve_block_order(
+    quota_fields: list[str], pseudo_available: set[str], field_states: dict[str, str], *, include_hidden: bool = False,
+) -> list[tuple[str, str]]:
+    """Merge saved block states with the available display blocks into ordered (key, state).
+
+    The popup is one flat, reorderable list of blocks: the account row, each usage
+    bar, the extra-usage bar, the Claude Code versions, and the status line.
+
+    *quota_fields* are the available usage-bar keys in default order.  *pseudo_available*
+    is the subset of ``account`` / ``extra_usage`` / ``installations`` / ``status`` to
+    include (each present only when it has something to show).  Saved entries set state
+    and order; unconfigured blocks use their default state (usage bars visible, the rest
+    collapsed) and follow in the default order: account, usage bars, extra usage,
+    versions, status.  Hidden blocks are omitted unless *include_hidden* is True.
+    """
+    default_order: list[str] = []
+    if 'account' in pseudo_available:
+        default_order.append('account')
+    default_order.extend(quota_fields)
+    for key in ('extra_usage', 'installations', 'status'):
+        if key in pseudo_available:
+            default_order.append(key)
+
+    available_set = set(default_order)
+    ordered: list[tuple[str, str]] = []
+    seen: set[str] = set()
+
+    for key, state in field_states.items():
+        if key in available_set and key not in seen:
+            seen.add(key)
+            if include_hidden or state != FIELD_HIDDEN:
+                ordered.append((key, state))
+
+    for key in default_order:
+        if key not in seen:
+            ordered.append((key, _default_block_state(key)))
+
+    return ordered
+
+
+def _block_label(key: str) -> str:
+    """Human-readable label for a display block, used in the settings list."""
+    labels = {
+        'account': T['account'],
+        'extra_usage': T['extra_usage'],
+        'installations': T['claude_code'],
+        'status': T['status_label'],
+    }
+    return labels.get(key) or popup_label(key)
+
+
+def _field_config_changed(current: dict[str, str], previous: dict[str, str]) -> bool:
+    """Return True if the field config differs, treating a reorder as a change.
+
+    Dict equality ignores order, so compare the ordered items - otherwise a
+    pure reorder (same keys and states) would not be detected and the widget
+    would keep the old order until the next data refresh or restart.
+    """
+    return list(current.items()) != list(previous.items())
+
+
 def _usage_entries(
     usage: dict[str, Any], field_states: dict[str, str] | None = None,
 ) -> list[tuple[str, str, dict[str, Any] | None, int | None, str]]:
@@ -107,7 +178,7 @@ def _usage_entries(
 
 def _snapshot_to_dict(
     snap: CacheSnapshot, installations: list[dict[str, str]] | None = None, next_poll_time: float | None = None,
-    *, hide_account: bool = False, field_states: dict[str, str] | None = None,
+    *, field_states: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Convert a CacheSnapshot to a JSON-serializable dict for the popup JS.
 
@@ -119,18 +190,16 @@ def _snapshot_to_dict(
         Pre-computed installation list, or None to detect now.
     next_poll_time : float or None
         Unix timestamp of the next scheduled API poll.
-    hide_account : bool
-        When True, omit the account profile so the popup never renders the
-        plan name or email.
     field_states : dict[str, str] or None
         Saved per-field display states for the resident widget.  When given,
         usage bars are ordered and filtered accordingly (hidden fields are
-        omitted); when None, all available fields are shown.
+        omitted) and ``layout`` orders every display block; when None, all
+        available fields are shown.
     """
     # Profile - truthiness check (not `is not None`): hides the account section when the API
     # returns an empty or incomplete response, instead of rendering empty Email/Plan fields.
     profile = None
-    if snap.profile and not hide_account:
+    if snap.profile:
         account = snap.profile.get('account', {})
         org = snap.profile.get('organization', {})
         profile = {
@@ -197,16 +266,38 @@ def _snapshot_to_dict(
             'error': snap.last_error[:120] if snap.last_error else None,
         }
 
+    # Layout - one flat, ordered list of every shown block (account, usage bars,
+    # extra usage, versions, status), driving block order and 3-state in the widget.
+    quota_fields = expand_popup_fields(['*'], snap.usage) if snap.usage else []
+    pseudo_available = {'status'}
+    if profile:
+        pseudo_available.add('account')
+    if extra:
+        pseudo_available.add('extra_usage')
+    if installations:
+        pseudo_available.add('installations')
+    block_order = resolve_block_order(quota_fields, pseudo_available, field_states or {})
+    layout = [{'key': key, 'state': state} for key, state in block_order]
+    # Never leave the compact view empty: before the first fetch and on errors
+    # there are no usage bars, so if nothing is "visible" surface the status line
+    # (this also guards a hand-edited INI that hides/collapses every block).
+    if layout and not any(block['state'] == FIELD_VISIBLE for block in layout):
+        for block in layout:
+            if block['key'] == 'status':
+                block['state'] = FIELD_VISIBLE
+                break
+
     return {
         'profile': profile,
         'usage': usage,
         'extra': extra,
         'installations': installations,
         'status': status,
+        'layout': layout,
     }
 
 
-def _init_config(snap: CacheSnapshot, next_poll_time: float | None = None, *, always_on_top: bool = True, field_states: dict[str, str] | None = None) -> dict[str, Any]:
+def _init_config(snap: CacheSnapshot, next_poll_time: float | None = None, *, always_on_top: bool = True, field_states: dict[str, str] | None = None, expanded: bool = False) -> dict[str, Any]:
     """Build the config object passed to JS ``init()`` after the page loads."""
     return {
         'colors': {
@@ -224,10 +315,29 @@ def _init_config(snap: CacheSnapshot, next_poll_time: float | None = None, *, al
             'menu_about': T['about_title'], 'menu_quit': T['quit'],
         },
         'app_version': __version__,
-        'widget_mode': WIDGET_MODE,
         'always_on_top': always_on_top,
-        'data': _snapshot_to_dict(snap, next_poll_time=next_poll_time, hide_account=WIDGET_HIDE_ACCOUNT, field_states=field_states),
+        'expanded': expanded,
+        'data': _snapshot_to_dict(snap, next_poll_time=next_poll_time, field_states=field_states),
     }
+
+
+def show_about_dialog(parent_hwnd: int = 0) -> None:
+    """Show the version/about dialog with clickable GitHub links, crediting upstream.
+
+    Rendered as a Win32 task dialog (a plain MessageBox would show the URLs as
+    text only).  Shared by the widget's right-click menu and the tray menu; the
+    tray call passes no parent (0).
+    """
+    fork_url = 'https://github.com/omi-last-stand/claude-usage-monitor'
+    upstream_url = 'https://github.com/jens-duttke/usage-monitor-for-claude'
+    heading = f'Claude Usage Monitor v{__version__}'
+    content = (
+        f'{T["about_description"]}\n\n'
+        f'<a href="{fork_url}">{fork_url}</a>\n\n'
+        f'{T["about_acknowledgement"]}\n\n'
+        f'<a href="{upstream_url}">{upstream_url}</a>'
+    )
+    show_info_dialog(parent_hwnd, T['about_title'], heading, content, on_link=webbrowser.open)
 
 
 # ---------------------------------------------------------------------------
@@ -253,6 +363,10 @@ class _PopupApi:
         """Toggle always-on-top and return the new state for the menu checkmark."""
         return self._popup.toggle_always_on_top()
 
+    def set_expanded(self, expanded: bool) -> None:
+        """Persist the compact/expanded view state (called from JS on toggle)."""
+        save_expanded(bool(expanded))
+
     def open_settings(self) -> None:
         self._popup.app.open_settings()
 
@@ -276,10 +390,10 @@ class UsagePopup:
     """Dark-themed HTML popup window showing account info and usage bars."""
 
     WIDTH = 340
-    _CHECK_MS = 2000
+    _CHECK_MS = 500  # widget refresh tick (ms): how soon saved field/position/data changes show
 
-    def __init__(self, app: UsageMonitorForClaude, *, widget_mode: bool = False) -> None:
-        """Create and display a popup window with usage details.
+    def __init__(self, app: UsageMonitorForClaude) -> None:
+        """Create and display the resident widget window.
 
         Blocks the calling thread until the window is closed.
         Requires ``webview.start()`` to be running on the main thread.
@@ -288,13 +402,8 @@ class UsagePopup:
         ----------
         app : UsageMonitorForClaude
             Parent application providing ``cache`` for data access.
-        widget_mode : bool
-            When True, run as a resident always-on-top widget: the
-            click-outside/Escape/focus dismiss watcher is not installed,
-            so the window stays open until explicitly closed.
         """
         self.app = app
-        self._widget_mode = widget_mode
         self._always_on_top = True
         self._running = True
         self._closed = threading.Event()
@@ -304,17 +413,17 @@ class UsagePopup:
         snap = app.cache.snapshot
         self._last_version = snap.version
 
-        # Resident widget: restore the last saved window position (logical pixels).
+        # Restore the last saved window position (logical pixels), the
+        # always-on-top state, and the per-field display config from the INI.
         self._saved_pos: tuple[int, int] | None = None
         self._positioned = False
-        self._field_states: dict[str, str] = {}
-        if widget_mode:
-            state = load_widget_state()
-            if state.window_x is not None and state.window_y is not None:
-                self._saved_pos = (state.window_x, state.window_y)
-            if state.always_on_top is not None:
-                self._always_on_top = state.always_on_top
-            self._field_states = state.field_states
+        state = load_widget_state()
+        if state.window_x is not None and state.window_y is not None:
+            self._saved_pos = (state.window_x, state.window_y)
+        if state.always_on_top is not None:
+            self._always_on_top = state.always_on_top
+        self._field_states: dict[str, str] = state.field_states
+        self._start_expanded = bool(state.expanded)
 
         api = _PopupApi(self)
 
@@ -322,7 +431,7 @@ class UsagePopup:
             '', url=str(_POPUP_DIR / 'popup.html'),
             width=self.WIDTH, height=initial_height,
             resizable=False, frameless=True, shadow=False,
-            easy_drag=widget_mode,
+            easy_drag=True,
             on_top=self._always_on_top, hidden=True,
             background_color=BG,
             js_api=api,
@@ -330,15 +439,12 @@ class UsagePopup:
         self._shown = False
         self._window.events.loaded += self._on_loaded
         self._window.events.closed += self._on_window_closed
-        if widget_mode:
-            threading.Thread(target=self._menu_dismiss_watch, daemon=True).start()
-        else:
-            threading.Thread(target=self._dismiss_watch, daemon=True).start()
+        threading.Thread(target=self._menu_dismiss_watch, daemon=True).start()
         self._closed.wait()
 
     def _on_loaded(self) -> None:
         """Inject config and show the window transparently for layout."""
-        config = _init_config(self.app.cache.snapshot, next_poll_time=self.app._next_poll_time, always_on_top=self._always_on_top, field_states=self._field_states)
+        config = _init_config(self.app.cache.snapshot, next_poll_time=self.app._next_poll_time, always_on_top=self._always_on_top, field_states=self._field_states, expanded=self._start_expanded)
         self._window.evaluate_js(f'init({json.dumps(config)})')
 
         self._popup_hwnd = self._window.native.Handle.ToInt32()
@@ -364,122 +470,6 @@ class UsagePopup:
         ctypes.windll.user32.SetWindowLongW(self._popup_hwnd, _GWL_EXSTYLE, ex_style & ~_WS_EX_LAYERED)
         self._shown = True
         threading.Thread(target=self._update_loop, daemon=True).start()
-
-    def _dismiss_watch(self) -> None:
-        """Close the popup on click-outside, Escape, or focus change.
-
-        Combines three Win32 mechanisms in a single message pump:
-
-        * ``WH_MOUSE_LL`` - catches clicks outside the popup bounds
-        * ``WH_KEYBOARD_LL`` - catches Escape even without focus
-        * ``EVENT_SYSTEM_FOREGROUND`` - catches Alt-Tab, browser open, etc.
-
-        The foreground hook uses a short delay to ride out the brief
-        focus bounce that WebView2 causes between its host and renderer
-        process on every click inside the content area.
-        """
-        this_thread = ctypes.windll.kernel32.GetCurrentThreadId()
-        WM_QUIT = 0x0012
-
-        def _post_quit() -> None:
-            if self._shown:
-                ctypes.windll.user32.PostThreadMessageW(this_thread, WM_QUIT, 0, 0)
-
-        # -- Shared argtypes for CallNextHookEx --
-        _call_next = ctypes.windll.user32.CallNextHookEx
-        _call_next.argtypes = [ctypes.wintypes.HANDLE, ctypes.c_int, ctypes.wintypes.WPARAM, ctypes.wintypes.LPARAM]
-        _call_next.restype = ctypes.c_long
-
-        # -- Mouse hook: click outside popup bounds --
-        class MSLLHOOKSTRUCT(ctypes.Structure):
-            _fields_ = [('pt', ctypes.wintypes.POINT), ('mouseData', ctypes.wintypes.DWORD),
-                         ('flags', ctypes.wintypes.DWORD), ('time', ctypes.wintypes.DWORD),
-                         ('dwExtraInfo', ctypes.POINTER(ctypes.c_ulong))]
-
-        @ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_int, ctypes.wintypes.WPARAM, ctypes.wintypes.LPARAM)
-        def mouse_proc(code, wparam, lparam):
-            if code >= 0 and wparam == 0x0201:  # WM_LBUTTONDOWN
-                popup_hwnd = self._popup_hwnd
-                if popup_hwnd:
-                    rect = ctypes.wintypes.RECT()
-                    ctypes.windll.user32.GetWindowRect(popup_hwnd, ctypes.byref(rect))
-                    info = ctypes.cast(lparam, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
-                    if not (rect.left <= info.pt.x <= rect.right and rect.top <= info.pt.y <= rect.bottom):
-                        _post_quit()
-            return _call_next(None, code, wparam, lparam)
-
-        # -- Keyboard hook: Escape key --
-        class KBDLLHOOKSTRUCT(ctypes.Structure):
-            _fields_ = [('vkCode', ctypes.wintypes.DWORD), ('scanCode', ctypes.wintypes.DWORD),
-                         ('flags', ctypes.wintypes.DWORD), ('time', ctypes.wintypes.DWORD),
-                         ('dwExtraInfo', ctypes.POINTER(ctypes.c_ulong))]
-
-        @ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_int, ctypes.wintypes.WPARAM, ctypes.wintypes.LPARAM)
-        def kb_proc(code, wparam, lparam):
-            if code >= 0 and wparam == 0x0100:  # WM_KEYDOWN
-                info = ctypes.cast(lparam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
-                if info.vkCode == 0x1B:  # VK_ESCAPE
-                    _post_quit()
-            return _call_next(None, code, wparam, lparam)
-
-        # -- Foreground event with delayed check --
-        WINEVENT_CALLBACK = ctypes.WINFUNCTYPE(
-            None, ctypes.wintypes.HANDLE, ctypes.wintypes.DWORD, ctypes.wintypes.HWND,
-            ctypes.wintypes.LONG, ctypes.wintypes.LONG, ctypes.wintypes.DWORD, ctypes.wintypes.DWORD,
-        )
-
-        _fg_timer: threading.Timer | None = None
-
-        def _delayed_fg_check() -> None:
-            """Check if focus is still outside the popup after the delay."""
-            popup_hwnd = self._popup_hwnd
-            if not popup_hwnd or not self._shown:
-                return
-            fg = ctypes.windll.user32.GetForegroundWindow()
-            if fg == popup_hwnd:
-                return
-            if ctypes.windll.user32.IsChild(popup_hwnd, fg):
-                return
-            if ctypes.windll.user32.GetAncestor(fg, 3) == popup_hwnd:  # GA_ROOTOWNER
-                return
-            _post_quit()
-
-        @WINEVENT_CALLBACK
-        def fg_proc(_hook, _event, hwnd, _id_obj, _id_child, _thread, _time):
-            nonlocal _fg_timer
-            popup_hwnd = self._popup_hwnd
-            if not popup_hwnd:
-                return
-            # Quick accept: focus moved to a child/owned window of our popup
-            if ctypes.windll.user32.IsChild(popup_hwnd, hwnd):
-                return
-            if ctypes.windll.user32.GetAncestor(hwnd, 3) == popup_hwnd:  # GA_ROOTOWNER
-                return
-            # Delay the dismiss to ride out WebView2's focus bounce
-            # between host and renderer process on content clicks.
-            if _fg_timer is not None:
-                _fg_timer.cancel()
-            _fg_timer = threading.Timer(0.2, _delayed_fg_check)
-            _fg_timer.daemon = True
-            _fg_timer.start()
-
-        mouse_hook = ctypes.windll.user32.SetWindowsHookExW(14, mouse_proc, None, 0)  # WH_MOUSE_LL
-        kb_hook = ctypes.windll.user32.SetWindowsHookExW(13, kb_proc, None, 0)  # WH_KEYBOARD_LL
-        # EVENT_SYSTEM_FOREGROUND with WINEVENT_SKIPOWNPROCESS
-        fg_hook = ctypes.windll.user32.SetWinEventHook(0x0003, 0x0003, None, fg_proc, 0, 0, 0x0002)
-
-        try:
-            msg = ctypes.wintypes.MSG()
-            while self._running and ctypes.windll.user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
-                pass
-        finally:
-            if _fg_timer is not None:
-                _fg_timer.cancel()
-            ctypes.windll.user32.UnhookWindowsHookEx(mouse_hook)
-            ctypes.windll.user32.UnhookWindowsHookEx(kb_hook)
-            ctypes.windll.user32.UnhookWinEvent(fg_hook)
-
-        self._close()
 
     def _close_menu(self) -> None:
         """Ask the page to close the right-click context menu (no-op if closed)."""
@@ -554,24 +544,8 @@ class UsagePopup:
         return self._always_on_top
 
     def show_about(self) -> None:
-        """Show a version/about dialog that credits the upstream author.
-
-        Rendered as a Win32 task dialog so the GitHub URLs are clickable
-        hyperlinks (the classic MessageBox can only show them as text).
-        """
-        fork_url = 'https://github.com/omi-last-stand/claude-usage-monitor'
-        upstream_url = 'https://github.com/jens-duttke/usage-monitor-for-claude'
-        heading = f'Claude Usage Monitor v{__version__}'
-        content = (
-            f'{T["about_description"]}\n\n'
-            f'<a href="{fork_url}">{fork_url}</a>\n\n'
-            f'{T["about_acknowledgement"]}\n\n'
-            f'<a href="{upstream_url}">{upstream_url}</a>'
-        )
-        show_info_dialog(
-            self._popup_hwnd, T['about_title'], heading, content,
-            on_link=webbrowser.open,
-        )
+        """Show the version/about dialog, parented to the widget window."""
+        show_about_dialog(self._popup_hwnd)
 
     def _update_loop(self) -> None:
         """Poll for data changes and push updates to the popup."""
@@ -581,66 +555,23 @@ class UsagePopup:
             time.sleep(self._CHECK_MS / 1000)
             if not self._running:
                 break
-            if self._widget_mode:
-                self._save_position_if_moved()
+            self._save_position_if_moved()
             try:
                 snap = self.app.cache.snapshot
                 next_poll_time = self.app._next_poll_time
-                field_states = load_widget_state().field_states if self._widget_mode else {}
+                field_states = load_widget_state().field_states
                 if (snap.version == self._last_version and next_poll_time == last_next_poll_time
-                        and field_states == self._field_states):
+                        and not _field_config_changed(field_states, self._field_states)):
                     continue
                 if snap.version != self._last_version:
                     self._last_version = snap.version
                     cached_installations = [{'name': i.name, 'version': i.version} for i in find_installations()]
                 last_next_poll_time = next_poll_time
                 self._field_states = field_states
-                data = _snapshot_to_dict(snap, installations=cached_installations, next_poll_time=next_poll_time, hide_account=WIDGET_HIDE_ACCOUNT, field_states=field_states)
+                data = _snapshot_to_dict(snap, installations=cached_installations, next_poll_time=next_poll_time, field_states=field_states)
                 self._window.evaluate_js(f'updateData({json.dumps(data)})')
             except Exception:
                 break
-
-    def _tray_position(self, physical_width: int, physical_height: int) -> tuple[int, int]:
-        """Calculate popup position near the system tray.
-
-        Parameters
-        ----------
-        physical_width : int
-            Actual window width in physical pixels.
-        physical_height : int
-            Actual window height in physical pixels.
-
-        Returns
-        -------
-        tuple[int, int]
-            Logical (x, y) coordinates.  Callers that need physical pixels
-            must multiply by the DPI scale factor.
-        """
-        tray_hwnd = ctypes.windll.user32.FindWindowW('Shell_TrayWnd', None)
-        hmon = ctypes.windll.user32.MonitorFromWindow(tray_hwnd, 2)  # MONITOR_DEFAULTTONEAREST
-
-        mon_info = _MONITORINFO()
-        mon_info.cbSize = ctypes.sizeof(_MONITORINFO)
-        ctypes.windll.user32.GetMonitorInfoW(hmon, ctypes.byref(mon_info))
-        mon = mon_info.rcMonitor
-        work = mon_info.rcWork
-
-        dpi = ctypes.windll.user32.GetDpiForWindow(self._popup_hwnd) or ctypes.windll.user32.GetDpiForSystem()
-        scale = dpi / _BASELINE_DPI
-
-        margin = 12
-
-        if work.left > mon.left:    # left-side taskbar
-            x = work.left + margin
-        else:
-            x = work.right - physical_width - margin
-
-        if work.top > mon.top:      # top taskbar
-            y = work.top + margin
-        else:
-            y = work.bottom - physical_height - margin
-
-        return int(x / scale), int(y / scale)
 
     def _center_position(self, physical_width: int, physical_height: int) -> tuple[int, int]:
         """Calculate a centered position on the monitor that owns the taskbar.
@@ -691,14 +622,14 @@ class UsagePopup:
         return bool(ctypes.windll.user32.MonitorFromPoint(point, 0))
 
     def _resize_and_position(self, height: int) -> None:
-        """Resize the window and reposition it near the system tray.
+        """Resize the window and place it at its saved (or centered) position.
 
         The first call happens while the window is still transparent
         (opacity 0), so separate resize/move calls cause no visible jump.
 
         pywebview 6.x ``resize()`` applies DPI scaling internally (consistent
         with ``move()``), so both expect logical pixels.  Physical dimensions
-        are still computed for ``_tray_position``, which needs them to
+        are still computed for ``_center_position``, which needs them to
         calculate the correct logical position against the physical work-area
         coordinates returned by Win32.
         """
@@ -708,23 +639,20 @@ class UsagePopup:
         physical_height = int(height * scale)
         self._window.resize(self.WIDTH, height)
 
-        # In widget mode, position the window only on the first layout.
-        # After that the user owns the position (drag), so height changes
-        # (expand/collapse, data refresh) must not snap it back.
-        if self._widget_mode and self._positioned:
+        # Position the window only on the first layout. After that the user
+        # owns the position (drag), so height changes (expand/collapse, data
+        # refresh) must not snap it back.
+        if self._positioned:
             return
 
-        if self._widget_mode and self._saved_pos is not None and self._is_position_visible(*self._saved_pos):
+        if self._saved_pos is not None and self._is_position_visible(*self._saved_pos):
             x, y = self._saved_pos
-        elif self._widget_mode:
-            x, y = self._center_position(physical_width, physical_height)
         else:
-            x, y = self._tray_position(physical_width, physical_height)
+            x, y = self._center_position(physical_width, physical_height)
         self._window.move(x, y)
         self._positioned = True
-        if self._widget_mode:
-            self._saved_pos = (x, y)
-            save_window_position(x, y)
+        self._saved_pos = (x, y)
+        save_window_position(x, y)
 
     def _save_position_if_moved(self) -> None:
         """Persist the window's top-left position after the user drags it.
@@ -821,14 +749,24 @@ class SettingsWindow:
         self._window.evaluate_js(f'initSettings({json.dumps(config)})')
 
     def _current_fields(self) -> list[dict[str, str]]:
-        """Every currently available field with its saved display state."""
+        """Every available display block (account, usage bars, extra, versions, status) with its saved order and state."""
         usage = self.app.cache.snapshot.usage or {}
         saved = load_widget_state().field_states
-        ordered = resolve_field_order(usage, saved, include_hidden=True)
-        return [{'key': key, 'label': popup_label(key), 'state': state} for key, state in ordered]
+        quota_fields = expand_popup_fields(['*'], usage)
+        pseudo_available = {'account', 'installations', 'status'}
+        extra = usage.get('extra_usage')
+        if extra and extra.get('is_enabled'):
+            pseudo_available.add('extra_usage')
+        ordered = resolve_block_order(quota_fields, pseudo_available, saved, include_hidden=True)
+        return [{'key': key, 'label': _block_label(key), 'state': state} for key, state in ordered]
 
     def apply(self, payload: dict[str, Any]) -> None:
-        """Persist the chosen field config and language (called from JS), then close."""
+        """Persist the chosen field config and language (called from JS).
+
+        Field changes are picked up live by the running widget, so the window
+        just closes.  The language is only read at startup, so when it changes
+        the app restarts automatically to apply the new language.
+        """
         fields = payload.get('fields') or []
         pairs = [
             (item['key'], item['state'])
@@ -836,8 +774,12 @@ class SettingsWindow:
             if isinstance(item, dict) and item.get('key') and item.get('state')
         ]
         save_field_config(pairs)
-        save_language(payload.get('language') or '')
+        new_language = payload.get('language') or ''
+        language_changed = new_language != load_language()
+        save_language(new_language)
         self.close()
+        if language_changed:
+            self.app.on_restart()
 
     def close(self) -> None:
         """Destroy the settings window (idempotent)."""

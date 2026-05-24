@@ -5,13 +5,12 @@ Prioritize readability and auditability - users handle credentials and must be a
 
 ## Platform
 - Windows-only application - no `sys.platform` checks or cross-platform guards needed
-- Windows APIs are used via `ctypes.windll`. This fork does not use the registry (`winreg`): autostart is a Startup-folder shortcut (`autostart.py`) and the tray-icon theme is the `light_taskbar` setting (no registry-based auto-detection)
+- Windows APIs are used via `ctypes.windll`. This fork does not use the registry (`winreg`): autostart is a Startup-folder shortcut (`autostart.py`). The tray icon is a static brand mark loaded by `tray_icon.load_tray_icon()` from the bundled `tray-icon.png` (the resident widget shows live usage), not a dynamically drawn gauge
 
 ## Popup Window & DPI
 - The popup uses pywebview with a WinForms host window and Edge WebView2
 - pywebview 6.x `resize()` **and** `move()` both expect **logical pixels** (pywebview applies DPI scaling internally for both)
-- `_tray_position()` still receives physical pixel dimensions (needed to calculate position against Win32 physical coordinates) and returns **logical coordinates** for `move()` - never change this to physical
-- `_tray_position()` uses `Shell_TrayWnd` + `MonitorFromWindow` + `GetMonitorInfoW` to find the monitor that owns the taskbar, then compares `work.left > mon.left` (not `> 0`) to detect a left-side taskbar - this correctly handles multi-monitor layouts where the primary monitor is not at virtual x=0
+- The widget restores its saved position from the INI (validated by `_is_position_visible`); with no saved position it falls back to `_center_position()`, which uses `Shell_TrayWnd` + `MonitorFromWindow` + `GetMonitorInfoW` to center on the monitor that owns the taskbar. Both receive physical pixel dimensions (to compute against Win32 physical coordinates) and return **logical coordinates** for `move()` - never change this to physical
 - Never replace `resize()`/`move()` with direct `SetWindowPos` calls - pywebview's internal scaling means raw Win32 calls would fight with pywebview's coordinate handling
 - The taskbar icon is hidden via Win32 extended styles (`WS_EX_TOOLWINDOW` + remove `WS_EX_APPWINDOW`). Do **not** use WinForms `ShowInTaskbar = False` - it recreates the native window handle, which crashes WebView2 from background threads
 

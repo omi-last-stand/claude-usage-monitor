@@ -2,151 +2,22 @@
 Tray Icon
 ==========
 
-Creates monochrome system tray icons.  The glyph color follows the
-``light_taskbar`` setting, and a contrasting outline is added so the icon
-stays legible on both light and dark taskbars without detecting the system
-theme (no registry access - project policy).
+Loads the static brand tray icon.  The app runs as an always-on-top widget
+that shows live usage, so the tray icon is a fixed brand mark rather than a
+dynamic gauge; its dark badge with a coral glyph stays legible on both light
+and dark taskbars.
 """
 from __future__ import annotations
 
-import functools
-import os
+from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image
 
-from .settings import ICON_DARK, ICON_LIGHT
+__all__ = ['load_tray_icon']
 
-__all__ = ['load_font', 'create_icon_image', 'create_status_image']
-
-TRANSPARENT = (0, 0, 0, 0)
+_ICON_PATH = Path(__file__).parent / 'tray-icon.png'
 
 
-def _with_outline(img: Image.Image, outline_rgb: tuple[int, int, int], thickness: int) -> Image.Image:
-    """Add a solid outline of *outline_rgb* around the opaque pixels of *img*.
-
-    The monochrome content keeps its own color while a contrasting halo
-    defines its edges, so the icon reads on any taskbar background without
-    knowing the system theme.
-    """
-    halo_alpha = img.getchannel('A').filter(ImageFilter.MaxFilter(thickness * 2 + 1))
-    halo = Image.new('RGBA', img.size, (*outline_rgb, 255))
-    halo.putalpha(halo_alpha)
-    return Image.alpha_composite(halo, img)
-
-
-@functools.lru_cache(maxsize=None)
-def load_font(size: int, symbol: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    """Load font at given size. Use symbol=True for Unicode glyphs not in Arial."""
-    windir = os.environ.get('WINDIR', 'C:\\Windows')
-    if symbol:
-        names = (f'{windir}\\Fonts\\seguisym.ttf', 'seguisym.ttf')
-    else:
-        names = (f'{windir}\\Fonts\\arialbd.ttf', 'arialbd.ttf', f'{windir}\\Fonts\\arial.ttf', 'arial.ttf')
-    for name in names:
-        try:
-            return ImageFont.truetype(name, size)
-        except OSError:
-            continue
-
-    return ImageFont.load_default()
-
-
-def create_icon_image(
-    pct_top: float, pct_bottom: float, light_taskbar: bool = False,
-    *, mode_top: str = 'utilization', mode_bottom: str = 'utilization',
-    time_pct_top: float | None = None, time_pct_bottom: float | None = None,
-    extra_usage_available: bool = False,
-) -> Image.Image:
-    """Create monochrome tray icon: 'C' letter + two usage bars.
-
-    Parameters
-    ----------
-    pct_top : float
-        Utilization percentage (0-100) for the upper bar.
-    pct_bottom : float
-        Utilization percentage (0-100) for the lower bar.
-    light_taskbar : bool
-        Use dark-on-light colors for a light taskbar.
-    mode_top : str
-        Display mode for the upper bar: ``'utilization'`` (linear fill)
-        or ``'overage'`` (fills as usage exceeds the time marker).
-    mode_bottom : str
-        Display mode for the lower bar.  Same semantics as *mode_top*.
-    time_pct_top : float or None
-        Elapsed-time percentage for the upper bar.  Required for ``overage``
-        mode; ignored otherwise.
-    time_pct_bottom : float or None
-        Elapsed-time percentage for the lower bar.  Same semantics as
-        *time_pct_top*.
-    extra_usage_available : bool
-        True if the account has paid extra-usage credits still available.
-        When a quota is fully exhausted, this decides whether to show ``$``
-        (continuing costs money) or ``✕`` (fully blocked).
-    """
-    colors = ICON_DARK if light_taskbar else ICON_LIGHT
-    fg, fg_half = colors['fg'], colors['fg_half']
-    outline_rgb = (255, 255, 255) if light_taskbar else (0, 0, 0)
-
-    S = 64
-    img = Image.new('RGBA', (S, S), TRANSPARENT)
-    draw = ImageDraw.Draw(img)
-
-    # Top glyph: "✕" when any quota exhausted and no extra credits left,
-    # "$" when exhausted but paid extra-usage still available,
-    # "C" while usage is still zero, otherwise the percentage.
-    stroke_width = 0
-    any_exhausted = pct_top >= 100 or pct_bottom >= 100
-    if any_exhausted and not extra_usage_available:
-        text, font = '✕', load_font(36, symbol=True)
-        stroke_width = 2
-    elif any_exhausted:
-        text, font = '$', load_font(42)
-        stroke_width = 2
-    elif pct_top > 0:
-        text, font = f'{pct_top:.0f}', load_font(40)
-    else:
-        text, font = 'C', load_font(42)
-
-    bbox = draw.textbbox((0, 0), text, font=font, stroke_width=stroke_width)
-    tw = bbox[2] - bbox[0]
-    draw.text(((S - tw) / 2 - bbox[0], -bbox[1]), text, fill=fg, font=font, stroke_width=stroke_width, stroke_fill=fg)
-
-    # Progress bars - full width, flush to bottom
-    bar_h = 9
-    gap = 3
-    bar2_y = S - bar_h
-    bar1_y = bar2_y - gap - bar_h
-
-    for y, pct, mode, time_pct in (
-        (bar1_y, pct_top, mode_top, time_pct_top),
-        (bar2_y, pct_bottom, mode_bottom, time_pct_bottom),
-    ):
-        draw.rectangle([0, y, S - 1, y + bar_h - 1], fill=fg_half)
-        if mode == 'overage' and time_pct is not None and time_pct < 100:
-            overage = max(0.0, pct - time_pct)
-            fill_ratio = min(1.0, overage / (100 - time_pct))
-            fill_w = max(0, int(S * fill_ratio))
-            if fill_w > 0:
-                draw.rectangle([0, y, fill_w - 1, y + bar_h - 1], fill=fg)
-        else:
-            fill_w = max(0, min(S, int(S * pct / 100)))
-            if fill_w > 0:
-                draw.rectangle([0, y, fill_w - 1, y + bar_h - 1], fill=fg)
-
-    return _with_outline(img, outline_rgb, 3)
-
-
-def create_status_image(text: str, light_taskbar: bool = False) -> Image.Image:
-    """Create monochrome centered-text icon for error/status states."""
-    fg_dim = (ICON_DARK if light_taskbar else ICON_LIGHT)['fg_dim']
-    outline_rgb = (255, 255, 255) if light_taskbar else (0, 0, 0)
-
-    S = 64
-    img = Image.new('RGBA', (S, S), TRANSPARENT)
-    draw = ImageDraw.Draw(img)
-    font = load_font(46)
-    bbox = draw.textbbox((0, 0), text, font=font)
-    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-    draw.text(((S - tw) / 2 - bbox[0], (S - th) / 2 - bbox[1]), text, fill=fg_dim, font=font)
-
-    return _with_outline(img, outline_rgb, 3)
+def load_tray_icon() -> Image.Image:
+    """Return the brand tray icon as an RGBA image for pystray."""
+    return Image.open(_ICON_PATH).convert('RGBA')

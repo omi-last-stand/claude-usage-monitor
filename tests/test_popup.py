@@ -12,7 +12,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from usage_monitor_for_claude.cache import CacheSnapshot
-from usage_monitor_for_claude.popup import UsagePopup, _BASELINE_DPI, _MONITORINFO, _init_config, _snapshot_to_dict, _usage_entries, resolve_field_order
+from usage_monitor_for_claude.popup import SettingsWindow, UsagePopup, _BASELINE_DPI, _MONITORINFO, _field_config_changed, _init_config, _snapshot_to_dict, _usage_entries, resolve_block_order, resolve_field_order
 
 
 def _snap(
@@ -500,7 +500,7 @@ class TestSnapshotToDict(unittest.TestCase):
     def test_all_top_level_keys_present(self):
         """Result always has profile, usage, extra, installations, status."""
         result = _snapshot_to_dict(_snap(), installations=[])
-        self.assertEqual(set(result.keys()), {'profile', 'usage', 'extra', 'installations', 'status'})
+        self.assertEqual(set(result.keys()), {'profile', 'usage', 'extra', 'installations', 'status', 'layout'})
 
 
 # ---------------------------------------------------------------------------
@@ -511,17 +511,22 @@ class TestInitConfig(unittest.TestCase):
     """Tests for _init_config - builds the JS init() config object."""
 
     def test_top_level_keys(self):
-        """Config has colors, t, app_version, widget_mode, always_on_top, and data."""
+        """Config has colors, t, app_version, always_on_top, expanded, and data."""
         config = _init_config(_snap())
         self.assertEqual(
             set(config.keys()),
-            {'colors', 't', 'app_version', 'widget_mode', 'always_on_top', 'data'},
+            {'colors', 't', 'app_version', 'always_on_top', 'expanded', 'data'},
         )
 
     def test_always_on_top_reflects_argument(self):
         """always_on_top defaults to True and mirrors the passed value."""
         self.assertIs(_init_config(_snap())['always_on_top'], True)
         self.assertIs(_init_config(_snap(), always_on_top=False)['always_on_top'], False)
+
+    def test_expanded_reflects_argument(self):
+        """expanded defaults to False and mirrors the passed value."""
+        self.assertIs(_init_config(_snap())['expanded'], False)
+        self.assertIs(_init_config(_snap(), expanded=True)['expanded'], True)
 
     def test_colors_from_settings(self):
         """Color values come from settings module constants."""
@@ -574,112 +579,7 @@ class TestInitConfig(unittest.TestCase):
         snap = _snap(profile={'account': {'email': 'a@b.com'}, 'organization': {}})
         config = _init_config(snap)
         self.assertEqual(config['data']['profile']['email'], 'a@b.com')
-        self.assertEqual(set(config['data'].keys()), {'profile', 'usage', 'extra', 'installations', 'status'})
-
-
-# ---------------------------------------------------------------------------
-# _tray_position
-# ---------------------------------------------------------------------------
-
-class TestTrayPosition(unittest.TestCase):
-    """Tests for UsagePopup._tray_position - popup placement near the tray.
-
-    _tray_position receives a physical-pixel height (the actual window
-    height after DPI scaling) and work-area bounds in physical pixels.
-    It returns logical coordinates suitable for pywebview's move().
-    """
-
-    def _call(self, work_left, work_top, work_right, work_bottom, dpi, physical_width, physical_height,
-              mon_left=0, mon_top=0):
-        """Call _tray_position without constructing a full UsagePopup."""
-        popup = object.__new__(UsagePopup)
-        popup._popup_hwnd = 12345
-
-        def fill_mon_info(_hmon, ptr):
-            info = ctypes.cast(ptr, ctypes.POINTER(_MONITORINFO)).contents
-            info.cbSize = ctypes.sizeof(_MONITORINFO)
-            info.rcMonitor.left = mon_left
-            info.rcMonitor.top = mon_top
-            info.rcMonitor.right = work_right
-            info.rcMonitor.bottom = work_bottom
-            info.rcWork.left = work_left
-            info.rcWork.top = work_top
-            info.rcWork.right = work_right
-            info.rcWork.bottom = work_bottom
-
-        with patch('ctypes.windll.user32.FindWindowW', return_value=99999), \
-             patch('ctypes.windll.user32.MonitorFromWindow', return_value=11111), \
-             patch('ctypes.windll.user32.GetMonitorInfoW', side_effect=fill_mon_info), \
-             patch('ctypes.windll.user32.GetDpiForWindow', return_value=dpi):
-            return popup._tray_position(physical_width, physical_height)
-
-    def test_bottom_right_at_100_percent_scaling(self):
-        """At 100% DPI, popup aligns to bottom-right of work area."""
-        x, y = self._call(0, 0, 1920, 1040, _BASELINE_DPI, 340, 400)
-        self.assertEqual(x, 1920 - 340 - 12)
-        self.assertEqual(y, 1040 - 400 - 12)
-
-    def test_bottom_right_at_125_percent_scaling(self):
-        """At 125% DPI, logical coordinates place the popup within the work area."""
-        scale = 120 / _BASELINE_DPI  # 1.25
-        pw = int(340 * scale)
-        ph = int(400 * scale)
-        x, y = self._call(0, 0, 2400, 1300, 120, pw, ph)
-        expected_x = int((2400 - pw - 12) / scale)
-        expected_y = int((1300 - ph - 12) / scale)
-        self.assertEqual(x, expected_x)
-        self.assertEqual(y, expected_y)
-
-    def test_bottom_right_at_150_percent_scaling(self):
-        """At 150% DPI, logical coordinates place the popup within the work area."""
-        scale = 144 / _BASELINE_DPI  # 1.5
-        pw = int(340 * scale)
-        ph = int(400 * scale)
-        x, y = self._call(0, 0, 2880, 1560, 144, pw, ph)
-        expected_x = int((2880 - pw - 12) / scale)
-        expected_y = int((1560 - ph - 12) / scale)
-        self.assertEqual(x, expected_x)
-        self.assertEqual(y, expected_y)
-
-    def test_taskbar_on_left(self):
-        """When taskbar is on the left (work_area.left > 0), popup goes to the left edge."""
-        x, y = self._call(60, 0, 1920, 1080, _BASELINE_DPI, 340, 400)
-        self.assertEqual(x, 60 + 12)
-        self.assertEqual(y, 1080 - 400 - 12)
-
-    def test_taskbar_on_top(self):
-        """When taskbar is on top (work_area.top > 0), popup goes to the top edge."""
-        x, y = self._call(0, 40, 1920, 1080, _BASELINE_DPI, 340, 400)
-        self.assertEqual(x, 1920 - 340 - 12)
-        self.assertEqual(y, 40 + 12)
-
-    def test_popup_fits_within_work_area_at_125_percent(self):
-        """The popup's physical extent must not exceed the work area at 125% scaling."""
-        dpi = 120
-        scale = dpi / _BASELINE_DPI
-        pw = int(340 * scale)
-        ph = int(400 * scale)
-        work_right = 2400
-        work_bottom = 1300
-        x, y = self._call(0, 0, work_right, work_bottom, dpi, pw, ph)
-        # move() scales logical coords back to physical
-        physical_x = x * scale
-        physical_y = y * scale
-        self.assertLessEqual(physical_x + pw, work_right)
-        self.assertLessEqual(physical_y + ph, work_bottom)
-
-    def test_taskbar_on_bottom_when_monitor_offset_left(self):
-        """Popup goes to bottom-right even when the primary monitor is not at virtual x=0.
-
-        Regression: the old code used ``work_area.left > 0`` which fired incorrectly
-        whenever secondary monitors were positioned to the left of the primary,
-        causing the popup to land at the left edge instead of the bottom-right corner.
-        """
-        # Primary monitor starts at virtual x=1920 (another monitor sits to its left).
-        # Taskbar is at the bottom: work_left == mon_left, so NOT a left-side taskbar.
-        x, y = self._call(1920, 0, 3840, 1040, _BASELINE_DPI, 340, 400, mon_left=1920)
-        self.assertEqual(x, 3840 - 340 - 12)
-        self.assertEqual(y, 1040 - 400 - 12)
+        self.assertEqual(set(config['data'].keys()), {'profile', 'usage', 'extra', 'installations', 'status', 'layout'})
 
 
 # ---------------------------------------------------------------------------
@@ -694,8 +594,6 @@ class TestResizeAndPosition(unittest.TestCase):
         popup = object.__new__(UsagePopup)
         popup.WIDTH = UsagePopup.WIDTH
         popup._popup_hwnd = 12345
-        # Normal (non-widget) popup: positions via _tray_position every call.
-        popup._widget_mode = False
         popup._positioned = False
         popup._saved_pos = None
 
@@ -717,7 +615,8 @@ class TestResizeAndPosition(unittest.TestCase):
         with patch('ctypes.windll.user32.GetDpiForWindow', return_value=dpi), \
              patch('ctypes.windll.user32.FindWindowW', return_value=99999), \
              patch('ctypes.windll.user32.MonitorFromWindow', return_value=11111), \
-             patch('ctypes.windll.user32.GetMonitorInfoW', side_effect=fill_mon_info):
+             patch('ctypes.windll.user32.GetMonitorInfoW', side_effect=fill_mon_info), \
+             patch('usage_monitor_for_claude.popup.save_window_position'):
             popup._resize_and_position(css_height)
 
         return mock_window
@@ -761,8 +660,6 @@ class TestResizeAndPosition(unittest.TestCase):
         popup = object.__new__(UsagePopup)
         popup.WIDTH = UsagePopup.WIDTH
         popup._popup_hwnd = 12345
-        # Normal (non-widget) popup: positions via _tray_position every call.
-        popup._widget_mode = False
         popup._positioned = False
         popup._saved_pos = None
 
@@ -785,11 +682,169 @@ class TestResizeAndPosition(unittest.TestCase):
              patch('ctypes.windll.user32.GetDpiForSystem', return_value=144) as mock_sys_dpi, \
              patch('ctypes.windll.user32.FindWindowW', return_value=99999), \
              patch('ctypes.windll.user32.MonitorFromWindow', return_value=11111), \
-             patch('ctypes.windll.user32.GetMonitorInfoW', side_effect=fill_mon_info):
+             patch('ctypes.windll.user32.GetMonitorInfoW', side_effect=fill_mon_info), \
+             patch('usage_monitor_for_claude.popup.save_window_position'):
             popup._resize_and_position(500)
 
         mock_sys_dpi.assert_called()
         mock_window.resize.assert_called_once_with(340, 500)
+
+
+# ---------------------------------------------------------------------------
+# SettingsWindow.apply
+# ---------------------------------------------------------------------------
+
+class TestSettingsWindowApply(unittest.TestCase):
+    """Tests for SettingsWindow.apply - saving fields and the language auto-restart."""
+
+    def _window(self):
+        """Build a SettingsWindow without constructing the real webview window."""
+        window = object.__new__(SettingsWindow)
+        window.app = MagicMock()
+        return window
+
+    @patch('usage_monitor_for_claude.popup.save_field_config')
+    @patch('usage_monitor_for_claude.popup.save_language')
+    @patch('usage_monitor_for_claude.popup.load_language', return_value='')
+    def test_language_change_restarts_app(self, _load, mock_save_language, _save_fields):
+        """Changing the language saves it and restarts the app to apply it."""
+        window = self._window()
+        with patch.object(window, 'close') as mock_close:
+            window.apply({'fields': [], 'language': 'ja'})
+
+        mock_save_language.assert_called_once_with('ja')
+        mock_close.assert_called_once()
+        window.app.on_restart.assert_called_once()
+
+    @patch('usage_monitor_for_claude.popup.save_field_config')
+    @patch('usage_monitor_for_claude.popup.save_language')
+    @patch('usage_monitor_for_claude.popup.load_language', return_value='ja')
+    def test_unchanged_language_does_not_restart(self, _load, _save_language, _save_fields):
+        """Saving without a language change just closes; the app is not restarted."""
+        window = self._window()
+        with patch.object(window, 'close') as mock_close:
+            window.apply({'fields': [], 'language': 'ja'})
+
+        window.app.on_restart.assert_not_called()
+        mock_close.assert_called_once()
+
+    @patch('usage_monitor_for_claude.popup.save_field_config')
+    @patch('usage_monitor_for_claude.popup.save_language')
+    @patch('usage_monitor_for_claude.popup.load_language', return_value='')
+    def test_field_rows_saved_as_pairs(self, _load, _save_language, mock_save_fields):
+        """Field rows are persisted as (key, state) pairs."""
+        window = self._window()
+        with patch.object(window, 'close'):
+            window.apply({'fields': [{'key': 'five_hour', 'state': 'collapsed'}], 'language': ''})
+
+        mock_save_fields.assert_called_once_with([('five_hour', 'collapsed')])
+        window.app.on_restart.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# _field_config_changed
+# ---------------------------------------------------------------------------
+
+class TestFieldConfigChanged(unittest.TestCase):
+    """Tests for _field_config_changed - the widget's live-refresh trigger."""
+
+    def test_identical_config_is_unchanged(self):
+        """Same keys, states, and order is not a change."""
+        self.assertFalse(_field_config_changed(
+            {'five_hour': 'visible', 'seven_day': 'hidden'},
+            {'five_hour': 'visible', 'seven_day': 'hidden'},
+        ))
+
+    def test_reorder_is_a_change(self):
+        """A pure reorder (same keys and states) counts as a change."""
+        self.assertTrue(_field_config_changed(
+            {'seven_day': 'hidden', 'five_hour': 'visible'},
+            {'five_hour': 'visible', 'seven_day': 'hidden'},
+        ))
+
+    def test_state_change_is_a_change(self):
+        """Changing a field's display state counts as a change."""
+        self.assertTrue(_field_config_changed({'five_hour': 'collapsed'}, {'five_hour': 'visible'}))
+
+    def test_added_or_removed_field_is_a_change(self):
+        """Adding or removing a field counts as a change."""
+        self.assertTrue(_field_config_changed(
+            {'five_hour': 'visible', 'seven_day': 'visible'},
+            {'five_hour': 'visible'},
+        ))
+
+
+# ---------------------------------------------------------------------------
+# resolve_block_order
+# ---------------------------------------------------------------------------
+
+class TestResolveBlockOrder(unittest.TestCase):
+    """Tests for resolve_block_order - the unified block list (account, bars, extra, versions, status)."""
+
+    PSEUDO = {'account', 'extra_usage', 'installations', 'status'}
+
+    def test_default_order_and_states(self):
+        """No saved config: account, usage bars, extra, versions, status - bars visible, the rest collapsed."""
+        ordered = resolve_block_order(['five_hour', 'seven_day'], self.PSEUDO, {})
+        self.assertEqual(ordered, [
+            ('account', 'collapsed'),
+            ('five_hour', 'visible'),
+            ('seven_day', 'visible'),
+            ('extra_usage', 'collapsed'),
+            ('installations', 'collapsed'),
+            ('status', 'collapsed'),
+        ])
+
+    def test_only_available_pseudo_blocks_included(self):
+        """Pseudo blocks absent from pseudo_available are omitted."""
+        ordered = resolve_block_order(['five_hour'], {'status'}, {})
+        self.assertEqual([key for key, _ in ordered], ['five_hour', 'status'])
+
+    def test_saved_order_and_state_respected(self):
+        """Saved entries set order and state; unconfigured blocks follow in default order."""
+        saved = {'status': 'visible', 'account': 'hidden', 'five_hour': 'collapsed'}
+        ordered = resolve_block_order(['five_hour', 'seven_day'], self.PSEUDO, saved, include_hidden=True)
+        self.assertEqual(ordered, [
+            ('status', 'visible'),
+            ('account', 'hidden'),
+            ('five_hour', 'collapsed'),
+            ('seven_day', 'visible'),
+            ('extra_usage', 'collapsed'),
+            ('installations', 'collapsed'),
+        ])
+
+    def test_hidden_excluded_by_default(self):
+        """Hidden blocks are dropped unless include_hidden is set."""
+        saved = {'account': 'hidden'}
+        keys = [key for key, _ in resolve_block_order(['five_hour'], self.PSEUDO, saved)]
+        self.assertNotIn('account', keys)
+        keys_incl = [key for key, _ in resolve_block_order(['five_hour'], self.PSEUDO, saved, include_hidden=True)]
+        self.assertIn('account', keys_incl)
+
+    def test_stale_saved_keys_ignored(self):
+        """Saved entries for blocks that are not available are dropped."""
+        keys = [key for key, _ in resolve_block_order(['five_hour'], {'account', 'status'}, {'extra_usage': 'visible'})]
+        self.assertNotIn('extra_usage', keys)
+
+    def test_snapshot_layout_lists_available_blocks_in_order(self):
+        """_snapshot_to_dict emits an ordered layout of the blocks that have data."""
+        usage = {'five_hour': {'utilization': 42, 'resets_at': '2026-01-01T00:00:00Z'}}
+        result = _snapshot_to_dict(_snap(usage=usage, profile={'account': {'email': 'a@b.com'}}), installations=[])
+        self.assertEqual([block['key'] for block in result['layout']], ['account', 'five_hour', 'status'])
+
+    def test_layout_promotes_status_when_nothing_visible(self):
+        """With no usage data, the status line is promoted to visible so compact is not blank."""
+        result = _snapshot_to_dict(_snap(usage={}, last_error='boom'), installations=[])
+        self.assertTrue(any(block['state'] == 'visible' for block in result['layout']))
+        status = next(block for block in result['layout'] if block['key'] == 'status')
+        self.assertEqual(status['state'], 'visible')
+
+    def test_layout_keeps_status_collapsed_when_a_bar_is_visible(self):
+        """When a usage bar is visible, the status block keeps its default collapsed state."""
+        usage = {'five_hour': {'utilization': 42, 'resets_at': '2026-01-01T00:00:00Z'}}
+        result = _snapshot_to_dict(_snap(usage=usage), installations=[])
+        status = next(block for block in result['layout'] if block['key'] == 'status')
+        self.assertEqual(status['state'], 'collapsed')
 
 
 if __name__ == '__main__':

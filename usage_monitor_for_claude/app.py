@@ -12,7 +12,6 @@ import sys
 import threading
 import time
 import traceback
-import webbrowser
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -21,18 +20,17 @@ import pystray  # type: ignore[import-untyped]  # no type stubs available
 from .api import api_headers
 from .autostart import is_autostart_enabled, set_autostart, sync_autostart_path
 from .cache import UsageCache
-from .claude_cli import PROJECT_URL
 from .command import run_event_command
 from .idle import get_idle_seconds, is_workstation_locked
 from .settings import (
-    ALERT_TIME_AWARE, ALERT_TIME_AWARE_BELOW, ICON_FIELDS, IDLE_PAUSE, LIGHT_TASKBAR,
+    ALERT_TIME_AWARE, ALERT_TIME_AWARE_BELOW, IDLE_PAUSE,
     ON_RESET_COMMAND, ON_STARTUP_COMMAND, ON_THRESHOLD_COMMAND,
-    POLL_ERROR, POLL_FAST, POLL_FAST_EXTRA, POLL_INTERVAL, WIDGET_MODE, get_alert_thresholds,
+    POLL_ERROR, POLL_FAST, POLL_FAST_EXTRA, POLL_INTERVAL, TOOLTIP_FIELDS, get_alert_thresholds,
 )
 from .formatting import elapsed_pct, field_period, format_credits, format_tooltip, parse_field_name, popup_label
 from .i18n import T
-from .popup import SettingsWindow, UsagePopup
-from .tray_icon import create_icon_image, create_status_image
+from .popup import SettingsWindow, UsagePopup, show_about_dialog
+from .tray_icon import load_tray_icon
 
 __all__ = ['UsageMonitorForClaude', 'crash_log']
 
@@ -74,17 +72,15 @@ class UsageMonitorForClaude:
         self._settings_lock = threading.Lock()
         self._settings_open = False
 
-        # Theme state (from settings; registry auto-detection removed by policy)
-        self._light_taskbar = LIGHT_TASKBAR
-
         self.restart_requested = False
 
         self.icon = pystray.Icon(
             'claude_usage_monitor',
-            icon=create_icon_image(0, 0, self._light_taskbar),
+            icon=load_tray_icon(),
             title=T['loading'],
             menu=pystray.Menu(
-                pystray.MenuItem(T['menu_show'], self.on_show_popup, default=True),
+                pystray.MenuItem(T['settings_title'], self.on_open_settings),
+                pystray.MenuItem(T['about_title'], self.on_about),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem(
                     T['autostart'], self.on_toggle_autostart,
@@ -97,10 +93,8 @@ class UsageMonitorForClaude:
                     pystray.MenuItem(T['test_threshold_5h'], self.on_test_threshold_5h, enabled=bool(ON_THRESHOLD_COMMAND)),
                     pystray.MenuItem(T['test_threshold_7d'], self.on_test_threshold_7d, enabled=bool(ON_THRESHOLD_COMMAND)),
                     pystray.MenuItem(T['test_startup'], self.on_test_startup, enabled=bool(ON_STARTUP_COMMAND)),
-                ), enabled=bool(ON_RESET_COMMAND or ON_STARTUP_COMMAND or ON_THRESHOLD_COMMAND)),
+                ), visible=bool(ON_RESET_COMMAND or ON_STARTUP_COMMAND or ON_THRESHOLD_COMMAND)),
                 pystray.MenuItem(T['restart'], self.on_restart),
-                pystray.Menu.SEPARATOR,
-                pystray.MenuItem(T['menu_project'], self.on_open_project),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem(T['quit'], self.on_quit),
             ),
@@ -124,8 +118,11 @@ class UsageMonitorForClaude:
         self.restart_requested = True
         self.on_quit(icon, item)
 
-    def on_open_project(self, icon: Any = None, item: Any = None) -> None:
-        webbrowser.open(PROJECT_URL)
+    def on_open_settings(self, icon: Any = None, item: Any = None) -> None:
+        self.open_settings()
+
+    def on_about(self, icon: Any = None, item: Any = None) -> None:
+        threading.Thread(target=show_about_dialog, daemon=True).start()
 
     def on_test_reset_5h(self, icon: Any = None, item: Any = None) -> None:
         run_event_command(ON_RESET_COMMAND, {
@@ -224,7 +221,7 @@ class UsageMonitorForClaude:
                     if needs_refresh:
                         self.update()
                 threading.Thread(target=_bg_refresh, daemon=True).start()
-            UsagePopup(self, widget_mode=WIDGET_MODE)
+            UsagePopup(self)
         finally:
             self._popup_closed_at = time.time()
             self._popup_open = False
@@ -232,32 +229,12 @@ class UsageMonitorForClaude:
     # Tray rendering
 
     def _render_tray(self) -> None:
-        """Re-render tray icon and tooltip from current state."""
-        data = self._last_response
-        if 'error' in data:
-            self.icon.icon = create_status_image('C!' if data.get('auth_error') else '!', self._light_taskbar)
-        else:
-            top_field, top_mode = ICON_FIELDS[0].split(':', 1) if ':' in ICON_FIELDS[0] else (ICON_FIELDS[0], 'utilization')
-            bottom_field, bottom_mode = ICON_FIELDS[1].split(':', 1) if ':' in ICON_FIELDS[1] else (ICON_FIELDS[1], 'utilization')
-            top_entry = data.get(top_field) or {}
-            bottom_entry = data.get(bottom_field) or {}
-            pct_top = top_entry.get('utilization', 0) or 0
-            pct_bottom = bottom_entry.get('utilization', 0) or 0
-            top_period = field_period(top_field)
-            bottom_period = field_period(bottom_field)
-            time_pct_top = elapsed_pct(top_entry.get('resets_at', ''), top_period) if top_mode == 'overage' and top_period else None
-            time_pct_bottom = elapsed_pct(bottom_entry.get('resets_at', ''), bottom_period) if bottom_mode == 'overage' and bottom_period else None
-            extra = data.get('extra_usage') or {}
-            extra_limit = extra.get('monthly_limit') or 0
-            extra_used = extra.get('used_credits') or 0
-            extra_usage_available = bool(extra.get('is_enabled')) and extra_limit > 0 and extra_used < extra_limit
-            self.icon.icon = create_icon_image(
-                pct_top, pct_bottom, self._light_taskbar,
-                mode_top=top_mode, mode_bottom=bottom_mode,
-                time_pct_top=time_pct_top, time_pct_bottom=time_pct_bottom,
-                extra_usage_available=extra_usage_available,
-            )
-        self.icon.title = format_tooltip(data)
+        """Refresh the tray tooltip from the current state.
+
+        The tray icon is a static brand mark - the always-on-top widget shows
+        live usage - so only the hover tooltip changes here.
+        """
+        self.icon.title = format_tooltip(self._last_response)
 
     # Update orchestration
 
@@ -331,11 +308,11 @@ class UsageMonitorForClaude:
 
         self._check_threshold_alerts(result.data)
 
-        # Adaptive polling: speed up when icon top field usage is increasing
-        icon_top_key = ICON_FIELDS[0].split(':', 1)[0]
-        icon_top_pct = quota_fields.get(icon_top_key, 0)
-        icon_top_prev = self._prev_utilization.get(icon_top_key)
-        if icon_top_prev is not None and icon_top_pct > icon_top_prev:
+        # Adaptive polling: speed up when the primary quota's usage is increasing
+        watch_key = TOOLTIP_FIELDS[0] if TOOLTIP_FIELDS else 'five_hour'
+        watch_pct = quota_fields.get(watch_key, 0)
+        watch_prev = self._prev_utilization.get(watch_key)
+        if watch_prev is not None and watch_pct > watch_prev:
             self._fast_polls_remaining = POLL_FAST_EXTRA + 1
         elif self._fast_polls_remaining > 0:
             self._fast_polls_remaining -= 1
@@ -686,8 +663,7 @@ class UsageMonitorForClaude:
                 sync_autostart_path()
             if not api_headers():
                 icon.notify(f"{T['warn_no_token']}\n{T['warn_login']}", T['popup_title'])
-            if WIDGET_MODE:
-                self.on_show_popup()
+            self.on_show_popup()
             self.poll_loop()
         except Exception:
             crash_log(traceback.format_exc())

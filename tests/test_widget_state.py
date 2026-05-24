@@ -95,6 +95,32 @@ class TestWidgetStateDefaults(unittest.TestCase):
         self.assertIsNone(state.always_on_top)
 
 
+class TestExpanded(_TempIni):
+    """Tests for save_expanded() / load_widget_state().expanded."""
+
+    def test_missing_returns_none(self):
+        """No INI file means the view state is unset (None)."""
+        self.assertIsNone(ws.load_widget_state().expanded)
+
+    def test_roundtrip_true(self):
+        """Saving True (expanded) reads back as True."""
+        ws.save_expanded(True)
+        self.assertIs(ws.load_widget_state().expanded, True)
+
+    def test_roundtrip_false(self):
+        """Saving False (compact) reads back as False (not None)."""
+        ws.save_expanded(False)
+        self.assertIs(ws.load_widget_state().expanded, False)
+
+    def test_preserves_other_widget_settings(self):
+        """Saving the view state keeps the always-on-top preference intact."""
+        ws.save_always_on_top(True)
+        ws.save_expanded(True)
+        state = ws.load_widget_state()
+        self.assertIs(state.expanded, True)
+        self.assertIs(state.always_on_top, True)
+
+
 class TestLanguage(_TempIni):
     """Tests for save_language() / load_language()."""
 

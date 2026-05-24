@@ -27,7 +27,7 @@ def _make_app(thresholds: list[float] | None = None) -> UsageMonitorForClaude:
     if thresholds is None:
         thresholds = [80, 95]
     with patch('usage_monitor_for_claude.app.pystray'), \
-         patch('usage_monitor_for_claude.app.create_icon_image'):
+         patch('usage_monitor_for_claude.app.load_tray_icon'):
         app = UsageMonitorForClaude()
     app.icon = MagicMock()
     app._thresholds_patch = patch('usage_monitor_for_claude.app.get_alert_thresholds', return_value=thresholds)
@@ -485,7 +485,7 @@ class TestUpdateOrchestration(unittest.TestCase):
         self.assertEqual(self.app._last_response, {})
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_success_updates_last_response(self, _icon, _tooltip):
         """Successful update stores response in _last_response."""
         data = {'five_hour': {'utilization': 42.0}}
@@ -497,7 +497,7 @@ class TestUpdateOrchestration(unittest.TestCase):
         self.assertEqual(self.app._last_response, data)
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_status_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_error_updates_last_response(self, _status, _tooltip):
         """Error update stores error response in _last_response."""
         data = {'error': 'server down'}
@@ -509,7 +509,7 @@ class TestUpdateOrchestration(unittest.TestCase):
         self.assertEqual(self.app._last_response, data)
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_token_refresh_notification(self, _icon, _tooltip):
         """Shows notification when token refresh updated CLI version."""
         data = {'five_hour': {'utilization': 10.0}}
@@ -525,7 +525,7 @@ class TestUpdateOrchestration(unittest.TestCase):
         self.assertIn('2.1.69', args[0])
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_no_notification_when_no_cli_update(self, _icon, _tooltip):
         """No notification when token refreshed but no CLI update."""
         data = {'five_hour': {'utilization': 10.0}}
@@ -538,7 +538,7 @@ class TestUpdateOrchestration(unittest.TestCase):
         self.app.icon.notify.assert_not_called()
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_status_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_error_returns_before_threshold_checks(self, _status, _tooltip):
         """Error response returns early without threshold checks."""
         data = {'error': 'fail'}
@@ -550,7 +550,7 @@ class TestUpdateOrchestration(unittest.TestCase):
             mock_check.assert_not_called()
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_update_tracks_previous_values(self, _icon, _tooltip):
         """update() stores current pct values for next comparison."""
         data = {'five_hour': {'utilization': 42.0}, 'seven_day': {'utilization': 15.0}}
@@ -563,7 +563,7 @@ class TestUpdateOrchestration(unittest.TestCase):
         self.assertEqual(self.app._prev_utilization.get('seven_day'), 15.0)
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_status_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_error_does_not_update_previous_values(self, _status, _tooltip):
         """Error response does not change tracked previous values."""
         self.app._prev_utilization = {'five_hour': 50.0, 'seven_day': 20.0}
@@ -594,7 +594,7 @@ class TestResetNotifications(unittest.TestCase):
         _cleanup(self.app)
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_5h_reset_notification(self, _icon, _tooltip):
         """Notification fires when 5h usage drops from >95% with 7d not blocking."""
         self.app._prev_utilization = {'five_hour': 97.0, 'seven_day': 50.0}
@@ -607,7 +607,7 @@ class TestResetNotifications(unittest.TestCase):
         self.app.icon.notify.assert_called_once()
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_5h_reset_suppressed_when_7d_blocking(self, _icon, _tooltip):
         """No 5h reset notification when 7d is at 99%+."""
         self.app._prev_utilization = {'five_hour': 97.0, 'seven_day': 50.0}
@@ -621,7 +621,7 @@ class TestResetNotifications(unittest.TestCase):
         self.app.icon.notify.assert_not_called()
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_7d_reset_notification(self, _icon, _tooltip):
         """Notification fires when 7d usage drops from >98% with 5h not blocking."""
         self.app._prev_utilization = {'five_hour': 50.0, 'seven_day': 99.0}
@@ -634,7 +634,7 @@ class TestResetNotifications(unittest.TestCase):
         self.app.icon.notify.assert_called_once()
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_no_reset_notification_on_first_update(self, _icon, _tooltip):
         """No reset notification on first update (no previous values)."""
         data = {'five_hour': {'utilization': 10.0}, 'seven_day': {'utilization': 10.0}}
@@ -646,7 +646,7 @@ class TestResetNotifications(unittest.TestCase):
         self.app.icon.notify.assert_not_called()
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_update_ignores_non_dict_entries(self, _icon, _tooltip):
         """Non-dict entries in API response don't affect quota tracking."""
         self.app._prev_utilization = {'five_hour': 50.0}
@@ -664,7 +664,7 @@ class TestResetNotifications(unittest.TestCase):
         self.assertNotIn('error_code', self.app._prev_utilization)
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_update_excludes_extra_usage_from_quota_tracking(self, _icon, _tooltip):
         """extra_usage is not tracked as a quota field for resets or fast polling."""
         data = {
@@ -680,7 +680,7 @@ class TestResetNotifications(unittest.TestCase):
         self.assertNotIn('extra_usage', self.app._prev_utilization)
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_update_handles_all_null_fields(self, _icon, _tooltip):
         """All-null quota fields produce empty tracking state."""
         data = {'five_hour': None, 'seven_day': None}
@@ -692,7 +692,7 @@ class TestResetNotifications(unittest.TestCase):
         self.assertEqual(self.app._prev_utilization, {})
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_7d_reset_suppressed_when_5h_blocking(self, _icon, _tooltip):
         """No 7d reset notification when 5h is at 99%+."""
         self.app._prev_utilization = {'five_hour': 50.0, 'seven_day': 99.0}
@@ -707,7 +707,7 @@ class TestResetNotifications(unittest.TestCase):
 
     @patch('usage_monitor_for_claude.app.is_workstation_locked', return_value=True)
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_5h_reset_notification_deferred_while_idle(self, _icon, _tooltip, _locked):
         """Reset notification is deferred (not shown) while user is away."""
         self.app._prev_utilization = {'five_hour': 97.0, 'seven_day': 50.0}
@@ -722,7 +722,7 @@ class TestResetNotifications(unittest.TestCase):
 
     @patch('usage_monitor_for_claude.app.is_workstation_locked', return_value=True)
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_deferred_notification_shown_on_flush(self, _icon, _tooltip, _locked):
         """Deferred notifications are shown when flushed."""
         self.app._prev_utilization = {'five_hour': 97.0, 'seven_day': 50.0}
@@ -740,7 +740,7 @@ class TestResetNotifications(unittest.TestCase):
 
     @patch('usage_monitor_for_claude.app.is_workstation_locked', return_value=True)
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_repeated_resets_while_idle_deduplicated(self, _icon, _tooltip, _locked):
         """Multiple reset drops while idle produce only one deferred notification."""
         self.app.cache = MagicMock()
@@ -766,7 +766,7 @@ class TestResetNotifications(unittest.TestCase):
     @patch('usage_monitor_for_claude.app.ALERT_TIME_AWARE', False)
     @patch('usage_monitor_for_claude.app.is_workstation_locked', return_value=True)
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_threshold_notifications_deferred_and_deduplicated(self, _icon, _tooltip, _locked):
         """Successive threshold crossings while idle keep only the latest notification per variant."""
         self.app._prev_utilization = {'five_hour': 50.0, 'seven_day': 10.0}
@@ -809,7 +809,7 @@ class TestFastPolling(unittest.TestCase):
         _cleanup(self.app)
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_fast_polling_starts_on_usage_increase(self, _icon, _tooltip):
         """Fast polls start when 5h usage is increasing."""
         self.app._prev_utilization = {'five_hour': 40.0, 'seven_day': 10.0}
@@ -822,7 +822,7 @@ class TestFastPolling(unittest.TestCase):
         self.assertGreater(self.app._fast_polls_remaining, 0)
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_fast_polling_decrements(self, _icon, _tooltip):
         """Fast poll counter decrements when usage is stable."""
         self.app._prev_utilization = {'five_hour': 40.0, 'seven_day': 10.0}
@@ -836,7 +836,7 @@ class TestFastPolling(unittest.TestCase):
         self.assertEqual(self.app._fast_polls_remaining, 1)
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_fast_polling_not_below_zero(self, _icon, _tooltip):
         """Fast poll counter does not go below zero."""
         self.app._prev_utilization = {'five_hour': 40.0, 'seven_day': 10.0}
@@ -864,172 +864,29 @@ class TestRenderTray(unittest.TestCase):
         _cleanup(self.app)
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='Usage: 42%')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
-    def test_success_renders_icon(self, mock_icon, _tooltip):
-        """Successful data renders usage icon."""
+    def test_success_sets_tooltip(self, _tooltip):
+        """Successful data sets the tray tooltip from format_tooltip."""
         self.app._last_response = {'five_hour': {'utilization': 42.0}, 'seven_day': {'utilization': 10.0}}
         self.app._render_tray()
 
-        mock_icon.assert_called_once_with(42.0, 10.0, False, mode_top='utilization', mode_bottom='utilization', time_pct_top=None, time_pct_bottom=None, extra_usage_available=False)
         self.assertEqual(self.app.icon.title, 'Usage: 42%')
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='Error')
-    @patch('usage_monitor_for_claude.app.create_status_image')
-    def test_error_renders_exclamation(self, mock_status, _tooltip):
-        """Error data renders '!' status icon."""
+    def test_error_sets_tooltip(self, _tooltip):
+        """Error data still sets the tray tooltip (the icon stays the static brand mark)."""
         self.app._last_response = {'error': 'server down'}
         self.app._render_tray()
 
-        mock_status.assert_called_once_with('!', False)
+        self.assertEqual(self.app.icon.title, 'Error')
 
-    @patch('usage_monitor_for_claude.app.format_tooltip', return_value='Auth Error')
-    @patch('usage_monitor_for_claude.app.create_status_image')
-    def test_auth_error_renders_c_exclamation(self, mock_status, _tooltip):
-        """Auth error data renders 'C!' status icon."""
-        self.app._last_response = {'error': 'expired', 'auth_error': True}
-        self.app._render_tray()
+    def test_formats_current_last_response(self):
+        """_render_tray formats whatever is in _last_response."""
+        data = {'five_hour': {'utilization': 42.0}}
+        self.app._last_response = data
+        with patch('usage_monitor_for_claude.app.format_tooltip', return_value='t') as mock_fmt:
+            self.app._render_tray()
 
-        mock_status.assert_called_once_with('C!', False)
-
-    @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
-    def test_missing_utilization_defaults_to_zero(self, mock_icon, _tooltip):
-        """Missing utilization values default to 0."""
-        self.app._last_response = {'five_hour': {}, 'seven_day': {'utilization': None}}
-        self.app._render_tray()
-
-        mock_icon.assert_called_once_with(0, 0, False, mode_top='utilization', mode_bottom='utilization', time_pct_top=None, time_pct_bottom=None, extra_usage_available=False)
-
-    @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
-    @patch('usage_monitor_for_claude.app.ICON_FIELDS', ['seven_day_sonnet', 'five_hour'])
-    def test_custom_icon_fields(self, mock_icon, _tooltip):
-        """Custom icon_fields setting changes which fields are shown in the icon."""
-        self.app._last_response = {
-            'five_hour': {'utilization': 30.0},
-            'seven_day_sonnet': {'utilization': 75.0},
-        }
-        self.app._render_tray()
-
-        mock_icon.assert_called_once_with(75.0, 30.0, False, mode_top='utilization', mode_bottom='utilization', time_pct_top=None, time_pct_bottom=None, extra_usage_available=False)
-
-    @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
-    @patch('usage_monitor_for_claude.app.ICON_FIELDS', ['unknown_field', 'five_hour'])
-    def test_icon_fields_missing_from_response_defaults_to_zero(self, mock_icon, _tooltip):
-        """Icon field not present in API response defaults to 0%."""
-        self.app._last_response = {'five_hour': {'utilization': 42.0}}
-        self.app._render_tray()
-
-        mock_icon.assert_called_once_with(0, 42.0, False, mode_top='utilization', mode_bottom='utilization', time_pct_top=None, time_pct_bottom=None, extra_usage_available=False)
-
-    @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
-    @patch('usage_monitor_for_claude.app.ICON_FIELDS', ['seven_day_sonnet', 'five_hour'])
-    def test_icon_fields_null_in_response_defaults_to_zero(self, mock_icon, _tooltip):
-        """Icon field present but null in API response defaults to 0%."""
-        self.app._last_response = {'five_hour': {'utilization': 42.0}, 'seven_day_sonnet': None}
-        self.app._render_tray()
-
-        mock_icon.assert_called_once_with(0, 42.0, False, mode_top='utilization', mode_bottom='utilization', time_pct_top=None, time_pct_bottom=None, extra_usage_available=False)
-
-    @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
-    @patch('usage_monitor_for_claude.app.elapsed_pct', return_value=40.0)
-    @patch('usage_monitor_for_claude.app.ICON_FIELDS', ['five_hour:overage', 'seven_day'])
-    def test_overage_mode_passes_time_pct(self, mock_elapsed, mock_icon, _tooltip):
-        """Overage mode passes elapsed time pct to create_icon_image for the top bar."""
-        self.app._last_response = {
-            'five_hour': {'utilization': 60.0, 'resets_at': '2025-01-15T18:00:00Z'},
-            'seven_day': {'utilization': 20.0},
-        }
-        self.app._render_tray()
-
-        mock_icon.assert_called_once_with(60.0, 20.0, False, mode_top='overage', mode_bottom='utilization', time_pct_top=40.0, time_pct_bottom=None, extra_usage_available=False)
-
-    @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
-    @patch('usage_monitor_for_claude.app.elapsed_pct', return_value=50.0)
-    @patch('usage_monitor_for_claude.app.ICON_FIELDS', ['five_hour:overage', 'seven_day:overage'])
-    def test_both_overage_mode_passes_both_time_pcts(self, mock_elapsed, mock_icon, _tooltip):
-        """Both bars in overage mode pass elapsed time pct for both top and bottom."""
-        self.app._last_response = {
-            'five_hour': {'utilization': 30.0, 'resets_at': '2025-01-15T18:00:00Z'},
-            'seven_day': {'utilization': 10.0, 'resets_at': '2025-01-20T00:00:00Z'},
-        }
-        self.app._render_tray()
-
-        mock_icon.assert_called_once_with(30.0, 10.0, False, mode_top='overage', mode_bottom='overage', time_pct_top=50.0, time_pct_bottom=50.0, extra_usage_available=False)
-
-    @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
-    @patch('usage_monitor_for_claude.app.ICON_FIELDS', ['five_hour:overage', 'seven_day'])
-    def test_overage_mode_field_parsed_as_dict_key(self, mock_icon, _tooltip):
-        """Field name in overage mode is correctly stripped of mode suffix for data lookup."""
-        self.app._last_response = {
-            'five_hour': {'utilization': 55.0, 'resets_at': '2025-01-15T18:00:00Z'},
-            'seven_day': {'utilization': 25.0},
-        }
-        self.app._render_tray()
-
-        # pct_top should be 55.0 (not 0), confirming 'five_hour' was used as dict key not 'five_hour:overage'
-        call_args = mock_icon.call_args
-        self.assertEqual(call_args[0][0], 55.0)
-
-    @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
-    def test_extra_usage_available_true_when_credits_remain(self, mock_icon, _tooltip):
-        """extra_usage_available is True when extra-usage is enabled and credits are not exhausted."""
-        self.app._last_response = {
-            'five_hour': {'utilization': 100.0},
-            'seven_day': {'utilization': 80.0},
-            'extra_usage': {'is_enabled': True, 'monthly_limit': 1000, 'used_credits': 250.0},
-        }
-        self.app._render_tray()
-
-        self.assertTrue(mock_icon.call_args.kwargs['extra_usage_available'])
-
-    @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
-    def test_extra_usage_available_false_when_disabled(self, mock_icon, _tooltip):
-        """extra_usage_available is False when the account has not enabled extra usage."""
-        self.app._last_response = {
-            'five_hour': {'utilization': 100.0},
-            'extra_usage': {'is_enabled': False, 'monthly_limit': 0, 'used_credits': 0},
-        }
-        self.app._render_tray()
-
-        self.assertFalse(mock_icon.call_args.kwargs['extra_usage_available'])
-
-    @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
-    def test_extra_usage_available_false_when_credits_exhausted(self, mock_icon, _tooltip):
-        """extra_usage_available is False when all credits have been spent."""
-        self.app._last_response = {
-            'five_hour': {'utilization': 100.0},
-            'extra_usage': {'is_enabled': True, 'monthly_limit': 1000, 'used_credits': 1000.0},
-        }
-        self.app._render_tray()
-
-        self.assertFalse(mock_icon.call_args.kwargs['extra_usage_available'])
-
-    @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
-    def test_extra_usage_available_false_when_no_extra_usage_key(self, mock_icon, _tooltip):
-        """extra_usage_available is False when the API response omits the extra_usage object entirely."""
-        self.app._last_response = {'five_hour': {'utilization': 100.0}}
-        self.app._render_tray()
-
-        self.assertFalse(mock_icon.call_args.kwargs['extra_usage_available'])
-
-    @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
-    def test_extra_usage_available_false_when_extra_usage_null(self, mock_icon, _tooltip):
-        """extra_usage_available is False when the extra_usage field is explicitly null."""
-        self.app._last_response = {'five_hour': {'utilization': 100.0}, 'extra_usage': None}
-        self.app._render_tray()
-
-        self.assertFalse(mock_icon.call_args.kwargs['extra_usage_available'])
+        mock_fmt.assert_called_once_with(data)
 
 
 # ---------------------------------------------------------------------------
@@ -1379,7 +1236,7 @@ class TestResetCommand(unittest.TestCase):
     @patch('usage_monitor_for_claude.app.ON_RESET_COMMAND', ['echo reset'])
     @patch('usage_monitor_for_claude.app.run_event_command')
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_reset_command_fires_on_5h_drop(self, _icon, _tooltip, mock_cmd):
         """Reset command fires when 5h usage drops."""
         self.app._prev_utilization = {'five_hour': 98.0, 'seven_day': 10.0}
@@ -1403,7 +1260,7 @@ class TestResetCommand(unittest.TestCase):
     @patch('usage_monitor_for_claude.app.ON_RESET_COMMAND', ['echo reset'])
     @patch('usage_monitor_for_claude.app.run_event_command')
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_reset_command_fires_on_7d_drop(self, _icon, _tooltip, mock_cmd):
         """Reset command fires when 7d usage drops."""
         self.app._prev_utilization = {'five_hour': 50.0, 'seven_day': 60.0}
@@ -1423,7 +1280,7 @@ class TestResetCommand(unittest.TestCase):
     @patch('usage_monitor_for_claude.app.ON_RESET_COMMAND', ['echo reset'])
     @patch('usage_monitor_for_claude.app.run_event_command')
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_reset_command_fires_on_any_drop_not_just_exhausted(self, _icon, _tooltip, mock_cmd):
         """Reset command fires on any usage drop, not just from near-exhaustion."""
         self.app._prev_utilization = {'five_hour': 30.0, 'seven_day': 10.0}
@@ -1441,7 +1298,7 @@ class TestResetCommand(unittest.TestCase):
     @patch('usage_monitor_for_claude.app.ON_RESET_COMMAND', ['echo reset'])
     @patch('usage_monitor_for_claude.app.run_event_command')
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_reset_command_missing_resets_at(self, _icon, _tooltip, mock_cmd):
         """USAGE_MONITOR_RESETS_AT is empty string when resets_at is absent from data."""
         self.app._prev_utilization = {'five_hour': 80.0, 'seven_day': 10.0}
@@ -1458,7 +1315,7 @@ class TestResetCommand(unittest.TestCase):
     @patch('usage_monitor_for_claude.app.ON_RESET_COMMAND', [])
     @patch('usage_monitor_for_claude.app.run_event_command')
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_no_command_when_setting_empty(self, _icon, _tooltip, mock_cmd):
         """No command executed when on_reset_command is empty."""
         self.app._prev_utilization = {'five_hour': 98.0, 'seven_day': 10.0}
@@ -1473,7 +1330,7 @@ class TestResetCommand(unittest.TestCase):
     @patch('usage_monitor_for_claude.app.ON_RESET_COMMAND', ['echo reset'])
     @patch('usage_monitor_for_claude.app.run_event_command')
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_no_command_when_usage_increases(self, _icon, _tooltip, mock_cmd):
         """No command when usage is increasing."""
         self.app._prev_utilization = {'five_hour': 50.0, 'seven_day': 10.0}
@@ -1488,7 +1345,7 @@ class TestResetCommand(unittest.TestCase):
     @patch('usage_monitor_for_claude.app.ON_RESET_COMMAND', ['echo reset'])
     @patch('usage_monitor_for_claude.app.run_event_command')
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_both_quotas_drop_fires_two_commands(self, _icon, _tooltip, mock_cmd):
         """Two commands fire when both 5h and 7d usage drop simultaneously."""
         self.app._prev_utilization = {'five_hour': 95.0, 'seven_day': 80.0}
@@ -1505,7 +1362,7 @@ class TestResetCommand(unittest.TestCase):
     @patch('usage_monitor_for_claude.app.ON_RESET_COMMAND', ['echo reset'])
     @patch('usage_monitor_for_claude.app.run_event_command')
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_no_command_on_first_update(self, _icon, _tooltip, mock_cmd):
         """No reset command on first update (no previous values)."""
         data = {'five_hour': {'utilization': 50.0}, 'seven_day': {'utilization': 10.0}}
@@ -1519,7 +1376,7 @@ class TestResetCommand(unittest.TestCase):
     @patch('usage_monitor_for_claude.app.ON_RESET_COMMAND', ['echo reset'])
     @patch('usage_monitor_for_claude.app.run_event_command')
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_no_command_when_usage_stable(self, _icon, _tooltip, mock_cmd):
         """No command when usage stays the same."""
         self.app._prev_utilization = {'five_hour': 50.0, 'seven_day': 10.0}
@@ -1535,7 +1392,7 @@ class TestResetCommand(unittest.TestCase):
     @patch('usage_monitor_for_claude.app.run_event_command')
     @patch('usage_monitor_for_claude.app.is_workstation_locked', return_value=True)
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_reset_command_fires_while_notification_deferred(self, _icon, _tooltip, _locked, mock_cmd):
         """Reset command fires immediately even when notification is deferred due to idle/lock."""
         self.app._prev_utilization = {'five_hour': 97.0, 'seven_day': 50.0}
@@ -1650,7 +1507,7 @@ class TestThresholdCommand(unittest.TestCase):
     @patch('usage_monitor_for_claude.app.run_event_command')
     @patch('usage_monitor_for_claude.app.is_workstation_locked', return_value=True)
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_threshold_command_fires_while_notification_deferred(self, _icon, _tooltip, _locked, mock_cmd):
         """Threshold command fires immediately even when notification is deferred due to idle/lock."""
         self.app._prev_utilization = {'five_hour': 50.0, 'seven_day': 10.0}
@@ -2058,7 +1915,7 @@ class TestIdleResetPendingCleared(unittest.TestCase):
     @patch('usage_monitor_for_claude.app.ON_RESET_COMMAND', ['echo reset'])
     @patch('usage_monitor_for_claude.app.run_event_command')
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_5h_drop_clears_idle_reset_pending(self, _icon, _tooltip, _cmd):
         """_idle_reset_pending is cleared when a 5h usage drop is detected."""
         self.app._idle_reset_pending = True
@@ -2074,7 +1931,7 @@ class TestIdleResetPendingCleared(unittest.TestCase):
     @patch('usage_monitor_for_claude.app.ON_RESET_COMMAND', ['echo reset'])
     @patch('usage_monitor_for_claude.app.run_event_command')
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_7d_drop_clears_idle_reset_pending(self, _icon, _tooltip, _cmd):
         """_idle_reset_pending is cleared when a 7d usage drop is detected."""
         self.app._idle_reset_pending = True
@@ -2090,7 +1947,7 @@ class TestIdleResetPendingCleared(unittest.TestCase):
     @patch('usage_monitor_for_claude.app.ON_RESET_COMMAND', ['echo reset'])
     @patch('usage_monitor_for_claude.app.run_event_command')
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_no_drop_keeps_idle_reset_pending(self, _icon, _tooltip, _cmd):
         """_idle_reset_pending persists when usage stays stable (no drop)."""
         self.app._idle_reset_pending = True
@@ -2104,7 +1961,7 @@ class TestIdleResetPendingCleared(unittest.TestCase):
         self.assertTrue(self.app._idle_reset_pending)
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_error_response_keeps_idle_reset_pending(self, _icon, _tooltip):
         """_idle_reset_pending persists on API error (network failure)."""
         self.app._idle_reset_pending = True
@@ -2142,7 +1999,7 @@ class TestAccountSwitchDetection(unittest.TestCase):
         return mock
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_account_switch_shows_notification(self, _icon, _tooltip):
         """Notification fires when account UUID changes between updates."""
         data = {'five_hour': {'utilization': 10.0}}
@@ -2156,7 +2013,7 @@ class TestAccountSwitchDetection(unittest.TestCase):
         self.assertIn('new@example.com', args[0])
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_no_notification_on_first_update(self, _icon, _tooltip):
         """No account switch notification on first update (_prev_account_uuid is None)."""
         data = {'five_hour': {'utilization': 10.0}}
@@ -2167,7 +2024,7 @@ class TestAccountSwitchDetection(unittest.TestCase):
         self.app.icon.notify.assert_not_called()
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_account_switch_clears_prev_utilization(self, _icon, _tooltip):
         """Account switch resets _prev_utilization to prevent false reset notifications."""
         data = {'five_hour': {'utilization': 5.0}, 'seven_day': {'utilization': 5.0}}
@@ -2181,7 +2038,7 @@ class TestAccountSwitchDetection(unittest.TestCase):
         self.assertEqual(self.app._prev_utilization, {})
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_account_switch_clears_notified_thresholds(self, _icon, _tooltip):
         """Account switch resets _notified_thresholds so threshold alerts re-arm for new account."""
         data = {'five_hour': {'utilization': 85.0}}
@@ -2194,7 +2051,7 @@ class TestAccountSwitchDetection(unittest.TestCase):
         self.assertEqual(self.app._notified_thresholds, {})
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_account_switch_no_reset_notification(self, _icon, _tooltip):
         """No quota reset notification fires when account switches (even if utilization dropped from high)."""
         # Old account was near limit; new account has low utilization
@@ -2211,7 +2068,7 @@ class TestAccountSwitchDetection(unittest.TestCase):
         self.assertNotIn('Reset', title_arg)
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_same_account_no_notification(self, _icon, _tooltip):
         """No account switch notification when UUID is unchanged."""
         data = {'five_hour': {'utilization': 50.0}}
@@ -2225,7 +2082,7 @@ class TestAccountSwitchDetection(unittest.TestCase):
 
     @patch('usage_monitor_for_claude.app.is_workstation_locked', return_value=True)
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_account_switch_notification_deferred_while_idle(self, _icon, _tooltip, _locked):
         """Account switch notification is deferred when user is away."""
         data = {'five_hour': {'utilization': 10.0}}
@@ -2238,7 +2095,7 @@ class TestAccountSwitchDetection(unittest.TestCase):
         self.assertIn('account_switched', self.app._deferred_notifications)
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_account_switch_updates_prev_account_uuid(self, _icon, _tooltip):
         """After account switch, _prev_account_uuid is updated to the new UUID."""
         data = {'five_hour': {'utilization': 10.0}}
@@ -2250,7 +2107,7 @@ class TestAccountSwitchDetection(unittest.TestCase):
         self.assertEqual(self.app._prev_account_uuid, 'uuid-new')
 
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_no_notification_when_profile_unavailable(self, _icon, _tooltip):
         """No account switch notification when profile could not be loaded (UUID unknown)."""
         data = {'five_hour': {'utilization': 10.0}}
@@ -2284,7 +2141,7 @@ class TestStartupCommand(unittest.TestCase):
     @patch('usage_monitor_for_claude.app.ON_STARTUP_COMMAND', ['echo startup'])
     @patch('usage_monitor_for_claude.app.run_event_command')
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_fires_on_first_successful_update(self, _icon, _tooltip, mock_cmd):
         """Startup command fires once on the first successful update."""
         data = {
@@ -2307,7 +2164,7 @@ class TestStartupCommand(unittest.TestCase):
     @patch('usage_monitor_for_claude.app.ON_STARTUP_COMMAND', ['echo startup'])
     @patch('usage_monitor_for_claude.app.run_event_command')
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_fires_only_once_across_multiple_updates(self, _icon, _tooltip, mock_cmd):
         """Startup command does not fire again on subsequent updates."""
         data = {'five_hour': {'utilization': 0.0}, 'seven_day': {'utilization': 10.0}}
@@ -2322,7 +2179,7 @@ class TestStartupCommand(unittest.TestCase):
     @patch('usage_monitor_for_claude.app.ON_STARTUP_COMMAND', [])
     @patch('usage_monitor_for_claude.app.run_event_command')
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_no_fire_when_command_unset(self, _icon, _tooltip, mock_cmd):
         """Startup command is not invoked when ON_STARTUP_COMMAND is empty."""
         data = {'five_hour': {'utilization': 0.0}, 'seven_day': {'utilization': 10.0}}
@@ -2335,7 +2192,7 @@ class TestStartupCommand(unittest.TestCase):
     @patch('usage_monitor_for_claude.app.ON_STARTUP_COMMAND', ['echo startup'])
     @patch('usage_monitor_for_claude.app.run_event_command')
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_no_fire_on_error_response(self, _icon, _tooltip, mock_cmd):
         """Startup command is skipped when the first update returns an error."""
         self.app.cache.update.return_value = UpdateResult(data={'error': 'connection failed'})
@@ -2348,7 +2205,7 @@ class TestStartupCommand(unittest.TestCase):
     @patch('usage_monitor_for_claude.app.ON_STARTUP_COMMAND', ['echo startup'])
     @patch('usage_monitor_for_claude.app.run_event_command')
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_fires_after_initial_error_then_success(self, _icon, _tooltip, mock_cmd):
         """Startup command fires on the first SUCCESSFUL update, even after errors."""
         ok_data = {'five_hour': {'utilization': 0.0}, 'seven_day': {'utilization': 10.0}}
@@ -2367,7 +2224,7 @@ class TestStartupCommand(unittest.TestCase):
     @patch('usage_monitor_for_claude.app.ON_STARTUP_COMMAND', ['echo startup'])
     @patch('usage_monitor_for_claude.app.run_event_command')
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_extra_usage_env_vars_when_enabled(self, _icon, _tooltip, mock_cmd):
         """Extra usage env vars are emitted when extra_usage is enabled."""
         data = {
@@ -2386,7 +2243,7 @@ class TestStartupCommand(unittest.TestCase):
     @patch('usage_monitor_for_claude.app.ON_STARTUP_COMMAND', ['echo startup'])
     @patch('usage_monitor_for_claude.app.run_event_command')
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_no_extra_usage_env_vars_when_disabled(self, _icon, _tooltip, mock_cmd):
         """Extra usage env vars are not emitted when extra_usage is disabled."""
         data = {
@@ -2404,7 +2261,7 @@ class TestStartupCommand(unittest.TestCase):
     @patch('usage_monitor_for_claude.app.ON_STARTUP_COMMAND', ['echo startup'])
     @patch('usage_monitor_for_claude.app.run_event_command')
     @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
+    @patch('usage_monitor_for_claude.app.load_tray_icon')
     def test_handles_null_quota_field(self, _icon, _tooltip, mock_cmd):
         """Quota fields with value None (feature not enabled) are skipped without error."""
         data = {'five_hour': {'utilization': 10.0}, 'seven_day': None}

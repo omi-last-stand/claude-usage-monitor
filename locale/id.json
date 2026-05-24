@@ -1,4 +1,5 @@
 {
+    "status_label": "Status",
     "popup_title": "Claude Usage Monitor",
     "settings_language": "Bahasa",
     "settings_language_system": "Bawaan sistem",
@@ -15,7 +16,6 @@
     "settings_empty": "Item muncul di sini setelah data penggunaan diambil.",
     "about_description": "Widget residen yang menjaga penggunaan Claude Anda tetap di layar.",
     "about_acknowledgement": "Dibuat berdasarkan Usage Monitor for Claude yang luar biasa dari Jens Duttke. Dengan rasa terima kasih yang tulus.",
-    "menu_show": "Tampilkan penggunaan Claude",
     "tooltip_title": "Penggunaan Claude",
     "account": "AKUN",
     "usage": "PENGGUNAAN",
@@ -26,7 +26,6 @@
     "quit": "Keluar",
     "autostart": "Mulai dengan Windows",
     "restart": "Mulai Ulang",
-    "menu_project": "Proyek di GitHub",
     "test_commands": "Uji perintah event",
     "test_reset_5h": "Reset (5-jam)",
     "test_reset_7d": "Reset (7-hari)",

@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-PyInstaller spec file for Usage Monitor for Claude.
+PyInstaller spec file for Claude Usage Monitor.
 
 Build:
   pyinstaller usage_monitor_for_claude.spec
@@ -12,6 +12,7 @@ a = Analysis(
     binaries=[],
     datas=[
         ('locale/*.json', 'locale'),
+        ('usage_monitor_for_claude/tray-icon.png', 'usage_monitor_for_claude'),
         ('usage_monitor_for_claude/popup/popup.html', 'usage_monitor_for_claude/popup'),
         ('usage_monitor_for_claude/popup/popup.css', 'usage_monitor_for_claude/popup'),
         ('usage_monitor_for_claude/popup/popup.js', 'usage_monitor_for_claude/popup'),

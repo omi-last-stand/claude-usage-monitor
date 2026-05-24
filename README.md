@@ -16,34 +16,34 @@ Get the latest `ClaudeUsageMonitor.exe` from the [Releases](https://github.com/o
 本アプリは Jens Duttke 氏の [Usage Monitor for Claude](https://github.com/jens-duttke/usage-monitor-for-claude) のフォークです。素晴らしい原作に深く感謝します。
 This app is a fork of [Usage Monitor for Claude](https://github.com/jens-duttke/usage-monitor-for-claude) by Jens Duttke. With sincere gratitude to the original work.
 
-### スクリーンショット / Screenshots
-
-<table>
-<tr>
-<td align="center" valign="top"><img src="docs/images/widget-compact.png" width="300" alt="Compact view"><br><sub><b>コンパクト表示</b>：使用量バーだけ<br><b>Compact</b>: just the usage bars</sub></td>
-<td align="center" valign="top"><img src="docs/images/widget-expanded.png" width="300" alt="Expanded view"><br><sub><b>クリックで展開</b>：詳細を表示<br><b>Click to expand</b>: full details</sub></td>
-</tr>
-<tr>
-<td align="center" valign="top"><img src="docs/images/widget-menu.png" width="300" alt="Right-click menu"><br><sub><b>右クリックメニュー</b><br><b>Right-click menu</b></sub></td>
-<td align="center" valign="top"><img src="docs/images/settings.png" width="300" alt="Settings window"><br><sub><b>設定ウィンドウ</b>：3状態＋並べ替え<br><b>Settings</b>: 3-state fields + reorder</sub></td>
-</tr>
-</table>
-
 ---
 
 <a id="日本語"></a>
 
 ## 日本語
 
-claude.ai・Claude Code・各IDE拡張で共有されるレート制限の残量を、デスクトップ上に常時表示します。本家のトレイ常駐＋詳細ポップアップに加えて、**閉じない常駐ウィジェット**として使えるように拡張したフォークです。
+claude.ai・Claude Code・各IDE拡張で共有されるレート制限の残量を、デスクトップ上に常時表示します。本家のトレイ常駐＋詳細ポップアップを、**閉じない常駐ウィジェット**へと拡張したフォークです。
+
+### スクリーンショット
+
+<table>
+<tr>
+<td align="center" valign="top"><img src="docs/images/widget-compact.png" width="300" alt="コンパクト表示"><br><sub><b>コンパクト表示</b>：使用量バーだけ</sub></td>
+<td align="center" valign="top"><img src="docs/images/widget-expanded.png" width="300" alt="拡大表示"><br><sub><b>クリックで展開</b>：詳細を表示</sub></td>
+</tr>
+<tr>
+<td align="center" valign="top"><img src="docs/images/widget-menu.png" width="300" alt="右クリックメニュー"><br><sub><b>右クリックメニュー</b></sub></td>
+<td align="center" valign="top"><img src="docs/images/settings.png" width="300" alt="設定ウィンドウ"><br><sub><b>設定ウィンドウ</b>：3状態＋並べ替え</sub></td>
+</tr>
+</table>
 
 ### 本フォークで追加・変更した点
 
 - **常駐ウィジェット**：ポップアップが閉じず、常に前面に表示され続けます
 - **コンパクト表示／クリックで展開**：通常は使用量バーだけをコンパクトに表示。クリックすると詳細（アカウント・隠し項目・更新状況など）が開きます
-- **位置を記憶**：ウィンドウ位置を `ClaudeUsageMonitor.ini` に保存し、次回起動時に復元。ドラッグで自由に移動でき、画面外の座標は自動で見える位置に補正。初回はなければ画面中央に表示
+- **位置と表示状態を記憶**：ウィンドウ位置と、コンパクト/拡大のどちらで使っていたかを `ClaudeUsageMonitor.ini` に保存し、次回起動時に復元。ドラッグで自由に移動でき、画面外の座標は自動で見える位置に補正。初回はなければ画面中央にコンパクトで表示
 - **右クリックメニュー**：常に前面に表示（切替）／設定／バージョン情報／終了
-- **設定ウィンドウ**：表示する使用量項目を「表示／隠す／非表示」の3状態で選び、ドラッグで並べ替え。結果は ini に保存
+- **設定ウィンドウ**：表示するブロック（アカウント・各使用量バー・追加利用・Claude Codeバージョン・更新状況）を「表示／隠す／非表示」の3状態で選び、ドラッグで並べ替え。結果は ini に保存
 - **レジストリ不使用**：設定・状態はすべて exe と同じフォルダのファイルに保存します
 - **バージョン情報**：クリック可能なリンク付き（タスクダイアログ）
 
@@ -68,9 +68,6 @@ claude.ai・Claude Code・各IDE拡張で共有されるレート制限の残量
 - プレビルド版は本リポジトリの [Releases](https://github.com/omi-last-stand/claude-usage-monitor/releases) から入手できます（公開されている場合）。
 - 自分でビルドする場合は後述の「ソースからビルド」を参照してください。
 
-> [!TIP]
-> 常駐ウィジェットは既定で有効です。トレイアイコン＋ポップアップ（本家相当）の挙動にしたい場合は、設定ファイルに `{"widget_mode": false}` を指定します（「設定」の項を参照）。
-
 ### 使い方
 
 | 操作 | 動作 |
@@ -82,7 +79,7 @@ claude.ai・Claude Code・各IDE拡張で共有されるレート制限の残量
 
 「設定」を開くと、表示する使用量項目を選べます。各項目について「**隠す**」（コンパクト時は隠し、クリックで展開したときに表示）と「**非表示**」（常に表示しない）をチェックでき、行をドラッグして並び順を変更できます。
 
-ウィジェットとは別に、タスクトレイのアイコンを右クリックするとメニューが出ます（表示／Windows起動時に開始／イベントコマンドのテスト／再起動／GitHubで開く／終了）。設定ファイル（後述）を編集したあとは、この「**再起動**」で再読み込みします。
+ウィジェットとは別に、タスクトレイのアイコンを右クリックするとメニューが出ます（設定／バージョン情報／Windows起動時に開始／再起動／終了。イベントコマンドを設定している場合は「イベントコマンドのテスト」も表示）。設定ファイル（後述）を編集したあとは、この「**再起動**」で再読み込みします。
 
 ### 設定
 
@@ -164,13 +161,26 @@ python build.py
 
 Claude Usage Monitor shows your Claude rate-limit usage on the desktop at a glance. Rate limits are shared across claude.ai, Claude Code, and the IDE extensions. This is a fork that extends the original tray app and detail popup into a **resident widget that stays open**.
 
+### Screenshots
+
+<table>
+<tr>
+<td align="center" valign="top"><img src="docs/images/widget-compact-en.png" width="300" alt="Compact view"><br><sub><b>Compact</b>: just the usage bars</sub></td>
+<td align="center" valign="top"><img src="docs/images/widget-expanded-en.png" width="300" alt="Expanded view"><br><sub><b>Click to expand</b>: full details</sub></td>
+</tr>
+<tr>
+<td align="center" valign="top"><img src="docs/images/widget-menu-en.png" width="300" alt="Right-click menu"><br><sub><b>Right-click menu</b></sub></td>
+<td align="center" valign="top"><img src="docs/images/settings-en.png" width="300" alt="Settings window"><br><sub><b>Settings</b>: 3-state fields + reorder</sub></td>
+</tr>
+</table>
+
 ### What this fork adds / changes
 
 - **Resident widget** — the popup does not close and stays on top.
 - **Compact view / click to expand** — normally shows just the usage bars; click to reveal the details (account, collapsed items, status, …).
-- **Remembers its position** — the window position is saved to `ClaudeUsageMonitor.ini` and restored next launch. Drag it anywhere; off-screen coordinates are auto-corrected to a visible spot; the first run with no INI opens centered.
+- **Remembers its position and view** — the window position and whether you left it compact or expanded are saved to `ClaudeUsageMonitor.ini` and restored next launch. Drag it anywhere; off-screen coordinates are auto-corrected to a visible spot; the first run with no INI opens centered and compact.
 - **Right-click menu** — Always on top (toggle) / Settings / About / Quit.
-- **Settings window** — choose which usage fields to show with a three-state control (show / collapse / hide) and reorder them by drag-and-drop; saved to the INI.
+- **Settings window** — choose which blocks to show and in what order (the account row, each usage bar, the extra-usage bar, the Claude Code versions, the status line) with a three-state control (show / collapse / hide) and drag-to-reorder; saved to the INI.
 - **No registry** — all settings and state live in files next to the EXE.
 - **About dialog** with clickable links (a native task dialog).
 
@@ -195,9 +205,6 @@ Claude Usage Monitor shows your Claude rate-limit usage on the desktop at a glan
 - Prebuilt binaries are on the repo's [Releases](https://github.com/omi-last-stand/claude-usage-monitor/releases) page (when published).
 - To build it yourself, see "Building from source" below.
 
-> [!TIP]
-> The resident widget is on by default. For the classic tray-icon popup instead, set `{"widget_mode": false}` in the settings file (see "Configuration").
-
 ### How to use
 
 | Action | What happens |
@@ -209,7 +216,7 @@ Claude Usage Monitor shows your Claude rate-limit usage on the desktop at a glan
 
 Open **Settings** to choose which usage fields appear. For each field you can check **collapse** (hidden in the compact view, shown when expanded) and **hide** (never shown), and drag rows to reorder them.
 
-Separately from the widget, right-clicking the **system-tray icon** opens a menu: Show / Start with Windows / Test event commands / Restart / Project on GitHub / Quit. Use its **Restart** to reload the settings file after editing it.
+Separately from the widget, right-clicking the **system-tray icon** opens a menu: Settings / About / Start with Windows / Restart / Quit (plus Test event commands when you have any configured). Use its **Restart** to reload the settings file after editing it.
 
 ### Configuration
 

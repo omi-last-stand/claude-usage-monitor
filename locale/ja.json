@@ -1,4 +1,5 @@
 {
+    "status_label": "更新状況",
     "popup_title": "Claude Usage Monitor",
     "settings_language": "言語",
     "settings_language_system": "システムに従う",
@@ -15,7 +16,6 @@
     "settings_empty": "使用量データを取得すると、ここに項目が表示されます。",
     "about_description": "Claudeの使用量を常時表示する常駐ウィジェットです。",
     "about_acknowledgement": "本家 Jens Duttke 氏の素晴らしい Usage Monitor for Claude をベースにしています。心より感謝します。",
-    "menu_show": "Claude使用状況を表示",
     "tooltip_title": "Claude使用状況",
     "account": "アカウント",
     "usage": "使用状況",
@@ -26,7 +26,6 @@
     "quit": "終了",
     "autostart": "Windows起動時に開始",
     "restart": "再起動",
-    "menu_project": "GitHubのプロジェクト",
     "test_commands": "イベントコマンドをテスト",
     "test_reset_5h": "リセット (5時間)",
     "test_reset_7d": "リセット (7日間)",

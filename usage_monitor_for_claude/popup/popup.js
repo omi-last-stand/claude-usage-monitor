@@ -23,7 +23,6 @@ function init(config) {
     document.getElementById('headingAccount').textContent = translations.account;
     document.getElementById('labelEmail').textContent = translations.email;
     document.getElementById('labelPlan').textContent = translations.plan;
-    document.getElementById('headingUsage').textContent = translations.usage;
     document.getElementById('headingExtraUsage').textContent = translations.extra_usage;
     document.getElementById('headingClaudeCode').textContent = translations.claude_code;
 
@@ -34,28 +33,26 @@ function init(config) {
 
     document.getElementById('appVersion').textContent = config.app_version;
 
-    if (config.widget_mode) {
-        document.body.classList.add('widget', 'compact');
-        // Whole window is draggable (easy_drag). Distinguish a real click from
-        // the click that ends a drag, so moving the window doesn't also toggle.
-        document.body.addEventListener('pointerdown', onWidgetPointerDown);
-        document.body.addEventListener('click', onWidgetClick);
-        setupContextMenu(config.always_on_top !== false);
+    document.body.classList.add('widget');
+    // Restore the last compact/expanded view; default to compact on first run.
+    if (!config.expanded) {
+        document.body.classList.add('compact');
     }
+    // Whole window is draggable (easy_drag). Distinguish a real click from
+    // the click that ends a drag, so moving the window doesn't also toggle.
+    document.body.addEventListener('pointerdown', onWidgetPointerDown);
+    document.body.addEventListener('click', onWidgetClick);
+    setupContextMenu(config.always_on_top !== false);
 
     els = {
-        accountSection: document.getElementById('accountSection'),
+        blocks: document.getElementById('blocks'),
         emailRow: document.getElementById('emailRow'),
         emailValue: document.getElementById('emailValue'),
         planRow: document.getElementById('planRow'),
         planValue: document.getElementById('planValue'),
-        usageSection: document.getElementById('usageSection'),
-        usageBars: document.getElementById('usageBars'),
-        extraSection: document.getElementById('extraSection'),
         extraSpent: document.getElementById('extraSpent'),
         extraPct: document.getElementById('extraPct'),
         extraFill: document.getElementById('extraFill'),
-        installSection: document.getElementById('installSection'),
         installRows: document.getElementById('installRows'),
         statusSection: document.getElementById('statusSection'),
         statusText: document.getElementById('statusText'),
@@ -92,6 +89,7 @@ function onWidgetClick(event) {
         }
     }
     document.body.classList.toggle('compact');
+    pywebview.api.set_expanded(!document.body.classList.contains('compact'));
 }
 
 /**
@@ -145,32 +143,22 @@ function closeContextMenu() {
  * @param {object} data - Pre-formatted snapshot from _snapshot_to_dict().
  */
 function updateData(data) {
-    const hasProfile = !!data.profile;
-    els.accountSection.classList.toggle('visible', hasProfile);
-    if (hasProfile) {
+    if (data.profile) {
         els.emailValue.textContent = data.profile.email;
         els.emailRow.style.display = data.profile.email ? '' : 'none';
         els.planValue.textContent = data.profile.plan;
         els.planRow.style.display = data.profile.plan ? '' : 'none';
     }
 
-    const hasUsage = !!data.usage?.length;
-    els.usageSection.classList.toggle('visible', hasUsage);
-    if (hasUsage) {
-        updateUsageBars(data.usage);
-    }
+    reconcileBars(data.usage || []);
 
-    const hasExtra = !!data.extra;
-    els.extraSection.classList.toggle('visible', hasExtra);
-    if (hasExtra) {
+    if (data.extra) {
         els.extraSpent.textContent = data.extra.spent_text;
         els.extraPct.textContent = data.extra.pct_text;
         els.extraFill.style.width = `${data.extra.fill_pct * 100}%`;
     }
 
-    const hasInstalls = !!data.installations?.length;
-    els.installSection.classList.toggle('visible', hasInstalls);
-    if (hasInstalls) {
+    if (data.installations?.length) {
         els.installRows.replaceChildren(...data.installations.map((inst) => {
             const row = document.createElement('div');
             const dt = document.createElement('dt');
@@ -183,6 +171,52 @@ function updateData(data) {
     }
 
     updateStatus(data.status);
+    applyLayout(data.layout || []);
+}
+
+/**
+ * Add, update, or remove the usage-bar blocks inside #blocks by key, leaving the
+ * singleton blocks (account, extra, versions, status) untouched. Ordering and
+ * visibility are applied separately by applyLayout().
+ */
+function reconcileBars(entries) {
+    const wanted = new Set(entries.map((entry) => entry.key));
+    for (const bar of [...els.blocks.querySelectorAll('.usage-entry')]) {
+        if (!wanted.has(bar.dataset.block)) bar.remove();
+    }
+    for (const entry of entries) {
+        const existing = els.blocks.querySelector(`.usage-entry[data-block="${entry.key}"]`);
+        if (existing) {
+            updateBarElement(existing, entry);
+        } else {
+            const bar = createBarElement(entry);
+            els.blocks.appendChild(bar);
+            const fill = bar.querySelector('.bar-fill');
+            requestAnimationFrame(() => { fill.style.width = `${entry.fill_pct * 100}%`; });
+        }
+    }
+}
+
+/**
+ * Order and show/hide every block from the saved layout. The layout lists the
+ * visible and collapsed blocks in display order; a block not in it (hidden, or
+ * with no data) is dropped from the flex flow.
+ *
+ * @param {Array<{key: string, state: string}>} layout
+ */
+function applyLayout(layout) {
+    const config = new Map();
+    layout.forEach((block, index) => config.set(block.key, { state: block.state, index }));
+    for (const el of els.blocks.children) {
+        const entry = config.get(el.dataset.block);
+        if (entry) {
+            el.style.order = entry.index;
+            el.classList.add('shown');
+            el.classList.toggle('state-collapsed', entry.state === 'collapsed');
+        } else {
+            el.classList.remove('shown');
+        }
+    }
 }
 
 /**
@@ -198,11 +232,9 @@ function updateStatus(status) {
     }
 
     if (!status) {
-        els.statusSection.classList.remove('visible');
+        statusState = {};
         return;
     }
-
-    els.statusSection.classList.add('visible');
 
     if (status.last_success_time !== undefined) {
         statusState = {
@@ -234,8 +266,7 @@ function tickStatusText() {
     const now = Date.now() / 1000;
     const secondsAgo = Math.max(0, Math.floor(now - statusState.lastSuccessTime));
     const isStale = !!statusState.nextPollTime && (now > statusState.nextPollTime + 30);
-    els.usageSection.classList.toggle('stale', isStale);
-    els.extraSection.classList.toggle('stale', isStale);
+    els.blocks.classList.toggle('stale', isStale);
 
     const parts = [formatDuration(secondsAgo)];
 
@@ -292,31 +323,10 @@ function formatCountdown(totalSeconds) {
     return translations.duration_m.replace('{m}', totalMin);
 }
 
-function updateUsageBars(entries) {
-    // Rebuild when the set or order of fields changes (count differs, or any
-    // slot's field key no longer matches); otherwise update bars in place.
-    const sameLayout = entries.length === els.usageBars.children.length
-        && entries.every((e, i) => els.usageBars.children[i].dataset.key === (e.key || ''));
-    if (!sameLayout) {
-        els.usageBars.replaceChildren(...entries.map(createBarElement));
-        requestAnimationFrame(() => {
-            for (let i = 0; i < entries.length; i++) {
-                els.usageBars.children[i].querySelector('.bar-fill').style.width =
-                    `${entries[i].fill_pct * 100}%`;
-            }
-        });
-    } else {
-        for (let i = 0; i < entries.length; i++) {
-            updateBarElement(els.usageBars.children[i], entries[i]);
-        }
-    }
-}
-
 function createBarElement(entry) {
     const div = document.createElement('div');
-    div.className = 'usage-entry';
-    div.dataset.key = entry.key || '';
-    div.classList.toggle('state-collapsed', entry.state === 'collapsed');
+    div.className = 'usage-entry block';
+    div.dataset.block = entry.key || '';
 
     const header = document.createElement('div');
     header.className = 'bar-header';
@@ -362,7 +372,6 @@ function createBarElement(entry) {
 }
 
 function updateBarElement(div, entry) {
-    div.classList.toggle('state-collapsed', entry.state === 'collapsed');
     div.querySelector('.bar-pct').textContent = entry.pct_text;
 
     const fill = div.querySelector('.bar-fill');

@@ -1,4 +1,5 @@
 {
+    "status_label": "狀態",
     "popup_title": "Claude Usage Monitor",
     "settings_language": "語言",
     "settings_language_system": "跟隨系統",
@@ -15,7 +16,6 @@
     "settings_empty": "取得用量資料後，項目將顯示於此處。",
     "about_description": "一個常駐的桌面小工具，將你的 Claude 用量持續顯示在螢幕上。",
     "about_acknowledgement": "基於 Jens Duttke 出色的 Usage Monitor for Claude 打造。謹致誠摯謝意。",
-    "menu_show": "顯示Claude用量",
     "tooltip_title": "Claude用量",
     "account": "帳戶",
     "usage": "用量",
@@ -26,7 +26,6 @@
     "quit": "結束",
     "autostart": "開機自動啟動",
     "restart": "重新啟動",
-    "menu_project": "GitHub 專案",
     "test_commands": "測試事件命令",
     "test_reset_5h": "重置 (5小時)",
     "test_reset_7d": "重置 (7天)",

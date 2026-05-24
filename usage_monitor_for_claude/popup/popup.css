@@ -44,21 +44,22 @@ header {
     }
 }
 
-section, footer {
-    display: none;
+#blocks {
+    display: flex;
     flex-direction: column;
-    gap: 6px;
-
-    &.visible { display: flex; }
+    gap: 12px;
+    transition: opacity 0.5s ease;
 }
 
-section { transition: opacity 0.5s ease; }
-section.stale { opacity: 0.4; }
+#blocks.stale { opacity: 0.4; }
 
-section.visible ~ section.visible, section.visible ~ footer.visible {
-    border-top: 1px solid var(--bar-bg);
-    padding-top: 12px;
-}
+/* Every display block: the account row, each usage bar, the extra-usage bar,
+   the Claude Code versions, and the status line. Hidden by default; shown only
+   when the saved layout includes it, and ordered via the flex `order` property. */
+.block { display: none; }
+.block.shown { display: flex; }
+
+section.block { flex-direction: column; gap: 6px; }
 
 h2 {
     padding-bottom: 6px;
@@ -96,14 +97,7 @@ dl > div {
     & > dd { margin: 0; }
 }
 
-#usageBars {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
 .usage-entry {
-    display: flex;
     flex-direction: column;
     gap: 6px;
 }
@@ -177,12 +171,11 @@ footer {
     &.error > #statusText { color: var(--bar-fg-warn); }
 }
 
-/* Resident widget mode: the compact view shows only the usage bars;
-   clicking the body toggles between compact and the full (expanded) view. */
+/* Resident widget: the whole window is clickable to toggle compact/expanded. */
 body.widget { cursor: pointer; }
 
 /* The resident widget is not "closed" - collapse it by clicking, quit via the
-   right-click menu. Hide the popup's close button in widget mode. */
+   right-click menu. Hide the popup's close button. */
 body.widget #closeBtn { display: none; }
 
 body.widget.compact {
@@ -190,23 +183,11 @@ body.widget.compact {
     gap: 8px;
 }
 
-body.widget.compact > header,
-body.widget.compact > #accountSection,
-body.widget.compact > #extraSection,
-body.widget.compact > #installSection,
-body.widget.compact > #statusSection {
-    display: none !important;
-}
-
-/* Drop the divider/top-padding the sibling rule would otherwise add when
-   collapsed sections precede the still-visible usage section. */
-body.widget.compact > section.visible {
-    border-top: none;
-    padding-top: 0;
-}
-
-/* 3-state fields: collapsed bars are revealed only in the expanded view. */
-body.widget.compact .usage-entry.state-collapsed { display: none; }
+/* Compact view: the title header and any collapsed block are hidden, leaving
+   only the blocks marked "visible". */
+body.widget.compact > header { display: none; }
+body.widget.compact #blocks { gap: 8px; }
+body.widget.compact .block.shown.state-collapsed { display: none; }
 
 /* Right-click context menu (widget mode) */
 .context-menu {

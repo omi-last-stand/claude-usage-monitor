@@ -47,6 +47,7 @@ function initSettings(config) {
         for (const field of config.fields) {
             fieldListEl.appendChild(createFieldRow(field));
         }
+        updateRowConstraints();
     }
 
     document.getElementById('languageLabel').textContent = t.language;
@@ -104,18 +105,36 @@ function createFieldRow(field) {
     hide.checked = field.state === 'hidden';
     hideLabel.append(hide, document.createTextNode(t.hide));
 
-    // "Hide" wins over "collapse": disable the collapse box while hidden.
-    const syncCollapseEnabled = () => {
-        if (hide.checked) collapse.checked = false;
-        collapse.disabled = hide.checked;
-        collapseLabel.classList.toggle('disabled', hide.checked);
-    };
-    hide.addEventListener('change', syncCollapseEnabled);
-    syncCollapseEnabled();
+    hide.addEventListener('change', updateRowConstraints);
+    collapse.addEventListener('change', updateRowConstraints);
 
     li.append(handle, label, collapseLabel, hideLabel);
     addDragHandlers(li);
     return li;
+}
+
+/**
+ * Enforce the cross-row rules after any change:
+ *  - "Hide" wins over "collapse": a hidden row's collapse box is disabled.
+ *  - At least one block must stay "visible" (shown in the compact view), so
+ *    when only one visible row is left, both its boxes are disabled - the last
+ *    visible block can be neither hidden nor collapsed.
+ */
+function updateRowConstraints() {
+    const rows = [...fieldListEl.children];
+    const isVisible = (row) => !row.querySelector('.chk-hide').checked && !row.querySelector('.chk-collapse').checked;
+    const visibleCount = rows.filter(isVisible).length;
+    for (const row of rows) {
+        const hide = row.querySelector('.chk-hide');
+        const collapse = row.querySelector('.chk-collapse');
+        const lockVisible = visibleCount === 1 && isVisible(row);
+
+        if (hide.checked) collapse.checked = false;
+        collapse.disabled = hide.checked || lockVisible;
+        collapse.closest('.chk').classList.toggle('disabled', hide.checked || lockVisible);
+        hide.disabled = lockVisible;
+        hide.closest('.chk').classList.toggle('disabled', lockVisible);
+    }
 }
 
 /**
