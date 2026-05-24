@@ -32,12 +32,24 @@ def _make_app(thresholds: list[float] | None = None) -> UsageMonitorForClaude:
     app.icon = MagicMock()
     app._thresholds_patch = patch('usage_monitor_for_claude.app.get_alert_thresholds', return_value=thresholds)
     app._thresholds_patch.start()
+    # Notifications are deferred while the user is away, so mock an active
+    # machine by default. This keeps the notification tests deterministic
+    # instead of depending on the real idle/lock state of the test host;
+    # tests that exercise the away path override these with their own patches.
+    app._active_patches = [
+        patch('usage_monitor_for_claude.app.is_workstation_locked', return_value=False),
+        patch('usage_monitor_for_claude.app.get_idle_seconds', return_value=0),
+    ]
+    for active_patch in app._active_patches:
+        active_patch.start()
     return app
 
 
 def _cleanup(app: UsageMonitorForClaude) -> None:
     """Stop patches started by _make_app."""
     app._thresholds_patch.stop()
+    for active_patch in app._active_patches:
+        active_patch.stop()
 
 
 # ---------------------------------------------------------------------------
