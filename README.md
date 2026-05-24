@@ -3,6 +3,12 @@
 > Claudeの使用量を常時画面に表示する、常駐型のデスクトップウィジェット（Windows）。
 > A resident, always-on-top desktop widget that keeps your Claude usage on screen (Windows).
 
+<p align="center">
+  <img src="docs/images/claude-usage-monitor-demo-eng-preview.gif" width="640" alt="Demo: compact and expanded views, always on top">
+  <br>
+  <sub>コンパクト⇄拡大の切り替えと、常に前面に表示 / Compact ⇄ expanded, always on top</sub>
+</p>
+
 ## ダウンロード / Download
 
 最新の `ClaudeUsageMonitor.exe` は [Releases](https://github.com/omi-last-stand/claude-usage-monitor/releases) から入手できます。インストール不要で、単体のexeだけで動作します（設定・状態ファイルは任意）。自分でビルドする場合は下記「ソースからビルド」を参照してください。
