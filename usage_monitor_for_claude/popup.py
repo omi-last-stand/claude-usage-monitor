@@ -25,7 +25,7 @@ from .formatting import elapsed_pct, expand_popup_fields, field_period, format_c
 from .i18n import T
 from .settings import BAR_BG, BAR_DIVIDER, BAR_FG, BAR_FG_WARN, BAR_MARKER, BG, FG, FG_DIM, FG_HEADING, FG_LINK, POPUP_FIELDS, WIDGET_HIDE_ACCOUNT, WIDGET_MODE
 from .task_dialog import show_info_dialog
-from .widget_state import FIELD_HIDDEN, FIELD_VISIBLE, load_widget_state, save_always_on_top, save_window_position
+from .widget_state import FIELD_HIDDEN, FIELD_VISIBLE, load_widget_state, save_always_on_top, save_field_config, save_window_position
 
 _POPUP_DIR = Path(__file__).parent / 'popup'
 _BASELINE_DPI = 96
@@ -56,14 +56,20 @@ if TYPE_CHECKING:
 # Data helpers
 # ---------------------------------------------------------------------------
 
-def resolve_field_order(usage: dict[str, Any], field_states: dict[str, str]) -> list[tuple[str, str]]:
+def resolve_field_order(
+    usage: dict[str, Any], field_states: dict[str, str], *, include_hidden: bool = False,
+) -> list[tuple[str, str]]:
     """Merge the saved per-field display states with the fields the API reports.
 
     Returns ordered ``(key, state)`` pairs for every currently available
-    field except those marked hidden.  Saved entries set both the state and
-    the order; fields the user has not configured yet default to ``visible``
-    and follow in the usual sort order.  Saved entries for fields the API no
-    longer returns are dropped.
+    field.  Saved entries set both the state and the order; fields the user
+    has not configured yet default to ``visible`` and follow in the usual
+    sort order.  Saved entries for fields the API no longer returns are
+    dropped.
+
+    Hidden fields are omitted for rendering (the default) but kept when
+    *include_hidden* is True, which the settings window needs so the user can
+    un-hide them.
     """
     available = expand_popup_fields(['*'], usage)
     available_set = set(available)
@@ -73,7 +79,7 @@ def resolve_field_order(usage: dict[str, Any], field_states: dict[str, str]) -> 
     for key, state in field_states.items():
         if key in available_set and key not in seen:
             seen.add(key)
-            if state != FIELD_HIDDEN:
+            if include_hidden or state != FIELD_HIDDEN:
                 ordered.append((key, state))
 
     for key in available:
@@ -750,3 +756,86 @@ class UsagePopup:
 
         self._saved_pos = (x, y)
         save_window_position(x, y)
+
+
+# ---------------------------------------------------------------------------
+# Settings window
+# ---------------------------------------------------------------------------
+
+class _SettingsApi:
+    """Methods exposed to the settings window's JavaScript."""
+
+    def __init__(self, window: SettingsWindow) -> None:
+        self._window = window
+
+    def save(self, ordered_states: list[Any]) -> None:
+        """Persist the chosen field order/states and close the window."""
+        self._window.apply(ordered_states)
+
+    def cancel(self) -> None:
+        """Close the window without saving."""
+        self._window.close()
+
+
+class SettingsWindow:
+    """A separate window for choosing which usage fields to show, and their order.
+
+    Decoupled from the widget: saving writes the field config to the INI and
+    the running widget picks the change up on its next refresh, so no direct
+    window-to-window reference is needed.
+    """
+
+    WIDTH = 400
+    HEIGHT = 560
+
+    def __init__(self, app: UsageMonitorForClaude) -> None:
+        self.app = app
+        self._window = webview.create_window(
+            '設定',
+            url=str(_POPUP_DIR / 'settings.html'),
+            width=self.WIDTH, height=self.HEIGHT,
+            resizable=True, on_top=True,
+            background_color=BG,
+            js_api=_SettingsApi(self),
+        )
+        self._window.events.loaded += self._on_loaded
+        self._window.events.closed += self._on_closed
+
+    def _on_loaded(self) -> None:
+        """Inject theme colors and the current field list after the page loads."""
+        config = {
+            'colors': {
+                'bg': BG, 'fg': FG, 'fg_dim': FG_DIM, 'fg_heading': FG_HEADING,
+                'fg_link': FG_LINK, 'bar_bg': BAR_BG, 'bar_fg': BAR_FG,
+            },
+            'fields': self._current_fields(),
+        }
+        self._window.evaluate_js(f'initSettings({json.dumps(config)})')
+
+    def _current_fields(self) -> list[dict[str, str]]:
+        """Every currently available field with its saved display state."""
+        usage = self.app.cache.snapshot.usage or {}
+        saved = load_widget_state().field_states
+        ordered = resolve_field_order(usage, saved, include_hidden=True)
+        return [{'key': key, 'label': popup_label(key), 'state': state} for key, state in ordered]
+
+    def apply(self, ordered_states: list[Any]) -> None:
+        """Persist the chosen field config (called from JS), then close."""
+        pairs = [
+            (item['key'], item['state'])
+            for item in ordered_states
+            if isinstance(item, dict) and item.get('key') and item.get('state')
+        ]
+        save_field_config(pairs)
+        self.close()
+
+    def close(self) -> None:
+        """Destroy the settings window (idempotent)."""
+        try:
+            self._window.destroy()
+        except Exception:
+            pass
+
+    def _on_closed(self) -> None:
+        """Clear the app's open-settings guard so it can be reopened."""
+        self.app._settings_open = False

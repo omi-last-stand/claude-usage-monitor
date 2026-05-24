@@ -12,7 +12,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from usage_monitor_for_claude.cache import CacheSnapshot
-from usage_monitor_for_claude.popup import UsagePopup, _BASELINE_DPI, _MONITORINFO, _init_config, _snapshot_to_dict, _usage_entries
+from usage_monitor_for_claude.popup import UsagePopup, _BASELINE_DPI, _MONITORINFO, _init_config, _snapshot_to_dict, _usage_entries, resolve_field_order
 
 
 def _snap(
@@ -188,6 +188,13 @@ class TestUsageEntriesFieldStates(unittest.TestCase):
         """A saved field the API no longer returns is ignored."""
         keys = [e[0] for e in _usage_entries(self._usage(), {'opus': 'visible', 'five_hour': 'visible'})]
         self.assertNotIn('opus', keys)
+
+    def test_include_hidden_keeps_hidden_fields(self):
+        """resolve_field_order(include_hidden=True) keeps hidden fields for the settings UI."""
+        ordered = resolve_field_order(self._usage(), {'five_hour': 'hidden'}, include_hidden=True)
+        self.assertIn(('five_hour', 'hidden'), ordered)
+        # The default (rendering) path still drops it.
+        self.assertNotIn(('five_hour', 'hidden'), resolve_field_order(self._usage(), {'five_hour': 'hidden'}))
 
 
 # ---------------------------------------------------------------------------

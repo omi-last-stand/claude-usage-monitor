@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="settings.css">
+</head>
+<body>
+<header>
+    <h1>表示する項目</h1>
+    <p class="hint">ドラッグで並べ替えできます。「隠す」はコンパクト表示で隠れ、クリックで展開したときに表示されます。「非表示」は常に表示されません。</p>
+</header>
+
+<ul id="fieldList"></ul>
+<p id="emptyHint" class="empty-hint" hidden>使用量データを取得すると、ここに項目が表示されます。</p>
+
+<footer>
+    <button type="button" id="cancelBtn">キャンセル</button>
+    <button type="button" id="saveBtn">保存</button>
+</footer>
+
+<script src="settings.js"></script>
+</body>
+</html>

@@ -31,7 +31,7 @@ from .settings import (
 )
 from .formatting import elapsed_pct, field_period, format_credits, format_tooltip, parse_field_name, popup_label
 from .i18n import T
-from .popup import UsagePopup
+from .popup import SettingsWindow, UsagePopup
 from .tray_icon import create_icon_image, create_status_image
 
 __all__ = ['UsageMonitorForClaude', 'crash_log']
@@ -69,6 +69,9 @@ class UsageMonitorForClaude:
         self._popup_open = False
         self._popup_closed_at = 0.0
         self._next_poll_time: float | None = None
+
+        # Settings window state (one instance at a time)
+        self._settings_open = False
 
         # Theme state (from settings; registry auto-detection removed by policy)
         self._light_taskbar = LIGHT_TASKBAR
@@ -185,8 +188,19 @@ class UsageMonitorForClaude:
         self.icon.stop()
 
     def open_settings(self) -> None:
-        """Open the settings window. Placeholder until the settings UI is built."""
-        pass
+        """Open the field-selection settings window (one instance at a time)."""
+        if self._settings_open:
+            return
+        self._settings_open = True
+        threading.Thread(target=self._open_settings_window, daemon=True).start()
+
+    def _open_settings_window(self) -> None:
+        """Create the settings window; runs off the JS-bridge thread."""
+        try:
+            SettingsWindow(self)
+        except Exception:
+            self._settings_open = False
+            crash_log(traceback.format_exc())
 
     # Popup
 
