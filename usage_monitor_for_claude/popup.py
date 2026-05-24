@@ -25,7 +25,7 @@ from .formatting import elapsed_pct, expand_popup_fields, field_period, format_c
 from .i18n import T
 from .settings import BAR_BG, BAR_DIVIDER, BAR_FG, BAR_FG_WARN, BAR_MARKER, BG, FG, FG_DIM, FG_HEADING, FG_LINK, POPUP_FIELDS, WIDGET_HIDE_ACCOUNT, WIDGET_MODE
 from .task_dialog import show_info_dialog
-from .widget_state import FIELD_HIDDEN, FIELD_VISIBLE, load_widget_state, save_always_on_top, save_field_config, save_window_position
+from .widget_state import FIELD_HIDDEN, FIELD_VISIBLE, load_language, load_widget_state, save_always_on_top, save_field_config, save_language, save_window_position
 
 _POPUP_DIR = Path(__file__).parent / 'popup'
 _BASELINE_DPI = 96
@@ -767,9 +767,9 @@ class _SettingsApi:
     def __init__(self, window: SettingsWindow) -> None:
         self._window = window
 
-    def save(self, ordered_states: list[Any]) -> None:
-        """Persist the chosen field order/states and close the window."""
-        self._window.apply(ordered_states)
+    def save(self, payload: dict[str, Any]) -> None:
+        """Persist the chosen field order/states and language, then close."""
+        self._window.apply(payload)
 
     def cancel(self) -> None:
         """Close the window without saving."""
@@ -812,7 +812,10 @@ class SettingsWindow:
                 'collapse': T['settings_collapse'], 'hide': T['settings_hide'],
                 'save': T['settings_save'], 'cancel': T['settings_cancel'],
                 'empty': T['settings_empty'],
+                'language': T['settings_language'], 'language_system': T['settings_language_system'],
+                'language_hint': T['settings_language_hint'],
             },
+            'language': load_language(),
             'fields': self._current_fields(),
         }
         self._window.evaluate_js(f'initSettings({json.dumps(config)})')
@@ -824,14 +827,16 @@ class SettingsWindow:
         ordered = resolve_field_order(usage, saved, include_hidden=True)
         return [{'key': key, 'label': popup_label(key), 'state': state} for key, state in ordered]
 
-    def apply(self, ordered_states: list[Any]) -> None:
-        """Persist the chosen field config (called from JS), then close."""
+    def apply(self, payload: dict[str, Any]) -> None:
+        """Persist the chosen field config and language (called from JS), then close."""
+        fields = payload.get('fields') or []
         pairs = [
             (item['key'], item['state'])
-            for item in ordered_states
+            for item in fields
             if isinstance(item, dict) and item.get('key') and item.get('state')
         ]
         save_field_config(pairs)
+        save_language(payload.get('language') or '')
         self.close()
 
     def close(self) -> None:

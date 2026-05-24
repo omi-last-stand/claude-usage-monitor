@@ -2,6 +2,23 @@ let fieldListEl;
 let draggedRow = null;
 let t = {};
 
+// Language codes mapped to their endonym (each shown in its own language).
+const LANGUAGES = [
+    ['en', 'English'],
+    ['ja', '日本語'],
+    ['de', 'Deutsch'],
+    ['fr', 'Français'],
+    ['es', 'Español'],
+    ['pt-BR', 'Português (Brasil)'],
+    ['it', 'Italiano'],
+    ['ko', '한국어'],
+    ['hi', 'हिन्दी'],
+    ['id', 'Bahasa Indonesia'],
+    ['zh-CN', '简体中文'],
+    ['zh-TW', '繁體中文'],
+    ['uk', 'Українська'],
+];
+
 /**
  * Initialize the settings window: apply theme colors and render the field rows.
  *
@@ -31,6 +48,21 @@ function initSettings(config) {
             fieldListEl.appendChild(createFieldRow(field));
         }
     }
+
+    document.getElementById('languageLabel').textContent = t.language;
+    document.getElementById('languageHint').textContent = t.language_hint;
+    const langSelect = document.getElementById('languageSelect');
+    const systemOption = document.createElement('option');
+    systemOption.value = '';
+    systemOption.textContent = t.language_system;
+    langSelect.appendChild(systemOption);
+    for (const [code, name] of LANGUAGES) {
+        const opt = document.createElement('option');
+        opt.value = code;
+        opt.textContent = name;
+        langSelect.appendChild(opt);
+    }
+    langSelect.value = config.language || '';
 
     document.getElementById('saveBtn').addEventListener('click', onSave);
     document.getElementById('cancelBtn').addEventListener('click', () => pywebview.api.cancel());
@@ -123,11 +155,12 @@ function addDragHandlers(li) {
  * Collect the current order and per-field states, then send them to Python.
  */
 function onSave() {
-    const ordered = [...fieldListEl.children].map((li) => {
+    const fields = [...fieldListEl.children].map((li) => {
         const hidden = li.querySelector('.chk-hide').checked;
         const collapsed = li.querySelector('.chk-collapse').checked;
         const state = hidden ? 'hidden' : (collapsed ? 'collapsed' : 'visible');
         return { key: li.dataset.key, state };
     });
-    pywebview.api.save(ordered);
+    const language = document.getElementById('languageSelect').value;
+    pywebview.api.save({ fields, language });
 }

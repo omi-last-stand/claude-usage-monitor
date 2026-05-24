@@ -72,6 +72,31 @@ h1 {
 .chk.disabled { opacity: 0.4; cursor: default; }
 .chk.disabled input { cursor: default; }
 
+.language-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.language-row > label { color: var(--fg-dim); flex-shrink: 0; }
+
+.language-row > select {
+    flex: 1;
+    font-family: inherit;
+    font-size: 13px;
+    padding: 5px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--bar-bg);
+    background: var(--bar-bg);
+    color: var(--fg);
+    cursor: pointer;
+}
+
+.language-hint {
+    font-size: 12px;
+    color: var(--fg-dim);
+}
+
 footer {
     display: flex;
     justify-content: flex-end;

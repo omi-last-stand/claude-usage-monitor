@@ -95,5 +95,31 @@ class TestWidgetStateDefaults(unittest.TestCase):
         self.assertIsNone(state.always_on_top)
 
 
+class TestLanguage(_TempIni):
+    """Tests for save_language() / load_language()."""
+
+    def test_missing_returns_empty(self):
+        """No saved language means follow the system/JSON setting (empty string)."""
+        self.assertEqual(ws.load_language(), '')
+
+    def test_roundtrip(self):
+        """A saved language code reads back unchanged."""
+        ws.save_language('ja')
+        self.assertEqual(ws.load_language(), 'ja')
+
+    def test_empty_code_clears_the_setting(self):
+        """Saving an empty code removes the override (back to system default)."""
+        ws.save_language('de')
+        ws.save_language('')
+        self.assertEqual(ws.load_language(), '')
+
+    def test_preserves_other_widget_settings(self):
+        """Saving the language keeps the always-on-top preference intact."""
+        ws.save_always_on_top(False)
+        ws.save_language('pt-BR')
+        self.assertEqual(ws.load_language(), 'pt-BR')
+        self.assertIs(ws.load_widget_state().always_on_top, False)
+
+
 if __name__ == '__main__':
     unittest.main()

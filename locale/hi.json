@@ -1,5 +1,8 @@
 {
     "popup_title": "Claude Usage Monitor",
+    "settings_language": "भाषा",
+    "settings_language_system": "सिस्टम डिफ़ॉल्ट",
+    "settings_language_hint": "पुनः आरंभ करने पर लागू होगा।",
     "always_on_top": "हमेशा सबसे ऊपर",
     "settings_title": "सेटिंग्स",
     "about_title": "ऐप के बारे में",

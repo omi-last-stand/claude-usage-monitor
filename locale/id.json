@@ -1,5 +1,8 @@
 {
     "popup_title": "Claude Usage Monitor",
+    "settings_language": "Bahasa",
+    "settings_language_system": "Bawaan sistem",
+    "settings_language_hint": "Berlaku setelah memulai ulang.",
     "always_on_top": "Selalu di atas",
     "settings_title": "Pengaturan",
     "about_title": "Tentang",

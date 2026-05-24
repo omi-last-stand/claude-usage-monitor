@@ -1,5 +1,8 @@
 {
     "popup_title": "Claude Usage Monitor",
+    "settings_language": "Sprache",
+    "settings_language_system": "Systemstandard",
+    "settings_language_hint": "Wird nach einem Neustart wirksam.",
     "always_on_top": "Immer im Vordergrund",
     "settings_title": "Einstellungen",
     "about_title": "Über",

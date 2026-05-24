@@ -23,8 +23,8 @@ from typing import NamedTuple
 
 __all__ = [
     'FIELD_COLLAPSED', 'FIELD_HIDDEN', 'FIELD_VISIBLE', 'VALID_FIELD_STATES',
-    'WidgetState', 'ini_path', 'load_widget_state', 'save_always_on_top',
-    'save_field_config', 'save_window_position',
+    'WidgetState', 'ini_path', 'load_language', 'load_widget_state', 'save_always_on_top',
+    'save_field_config', 'save_language', 'save_window_position',
 ]
 
 FIELD_VISIBLE = 'visible'
@@ -149,6 +149,26 @@ def save_always_on_top(value: bool) -> None:
         if not parser.has_section(_WIDGET_SECTION):
             parser.add_section(_WIDGET_SECTION)
         parser.set(_WIDGET_SECTION, 'always_on_top', 'true' if value else 'false')
+        _write(parser)
+
+
+def load_language() -> str:
+    """Return the saved UI language code, or '' to follow the system/JSON setting."""
+    with _LOCK:
+        parser = _read()
+    return parser.get(_WIDGET_SECTION, 'language', fallback='') or ''
+
+
+def save_language(code: str) -> None:
+    """Persist the chosen UI language code; an empty code follows the system setting."""
+    with _LOCK:
+        parser = _read()
+        if not parser.has_section(_WIDGET_SECTION):
+            parser.add_section(_WIDGET_SECTION)
+        if code:
+            parser.set(_WIDGET_SECTION, 'language', code)
+        elif parser.has_option(_WIDGET_SECTION, 'language'):
+            parser.remove_option(_WIDGET_SECTION, 'language')
         _write(parser)
 
 

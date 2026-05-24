@@ -130,7 +130,8 @@ class TestLoadTranslations(unittest.TestCase):
             (locale_dir / 'en.json').write_text('{"title": "English"}')
             (locale_dir / 'de.json').write_text('{"title": "Deutsch"}')
 
-            with patch('usage_monitor_for_claude.i18n.LOCALE_DIR', locale_dir):
+            with patch('usage_monitor_for_claude.i18n.LOCALE_DIR', locale_dir), \
+                 patch('usage_monitor_for_claude.widget_state.load_language', return_value=''):
                 result = load_translations()
 
         self.assertEqual(result['title'], 'Deutsch')
@@ -144,7 +145,8 @@ class TestLoadTranslations(unittest.TestCase):
             locale_dir = Path(tmp)
             (locale_dir / 'en.json').write_text('{"title": "English"}')
 
-            with patch('usage_monitor_for_claude.i18n.LOCALE_DIR', locale_dir):
+            with patch('usage_monitor_for_claude.i18n.LOCALE_DIR', locale_dir), \
+                 patch('usage_monitor_for_claude.widget_state.load_language', return_value=''):
                 result = load_translations()
 
         self.assertEqual(result['title'], 'English')
@@ -157,7 +159,8 @@ class TestLoadTranslations(unittest.TestCase):
             (locale_dir / 'ja.json').write_text('{"title": "Japanese"}')
 
             with patch('usage_monitor_for_claude.settings.LANGUAGE', 'ja'), \
-                 patch('usage_monitor_for_claude.i18n.LOCALE_DIR', locale_dir):
+                 patch('usage_monitor_for_claude.i18n.LOCALE_DIR', locale_dir), \
+                 patch('usage_monitor_for_claude.widget_state.load_language', return_value=''):
                 result = load_translations()
 
         self.assertEqual(result['title'], 'Japanese')
@@ -172,10 +175,26 @@ class TestLoadTranslations(unittest.TestCase):
             (locale_dir / 'en.json').write_text('{"title": "English"}')
             (locale_dir / 'de.json').write_text('{"title": "Deutsch"}')
 
-            with patch('usage_monitor_for_claude.i18n.LOCALE_DIR', locale_dir):
+            with patch('usage_monitor_for_claude.i18n.LOCALE_DIR', locale_dir), \
+                 patch('usage_monitor_for_claude.widget_state.load_language', return_value=''):
                 result = load_translations()
 
         self.assertEqual(result['title'], 'Deutsch')
+
+
+    def test_widget_language_overrides_json_and_locale(self):
+        """The language saved from the settings window wins over JSON and locale."""
+        with TemporaryDirectory() as tmp:
+            locale_dir = Path(tmp)
+            (locale_dir / 'en.json').write_text('{"title": "English"}')
+            (locale_dir / 'ja.json').write_text('{"title": "Japanese"}')
+
+            with patch('usage_monitor_for_claude.settings.LANGUAGE', 'en'), \
+                 patch('usage_monitor_for_claude.i18n.LOCALE_DIR', locale_dir), \
+                 patch('usage_monitor_for_claude.widget_state.load_language', return_value='ja'):
+                result = load_translations()
+
+        self.assertEqual(result['title'], 'Japanese')
 
 
 # ---------------------------------------------------------------------------

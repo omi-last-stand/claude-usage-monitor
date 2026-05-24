@@ -1,5 +1,8 @@
 {
     "popup_title": "Claude Usage Monitor",
+    "settings_language": "语言",
+    "settings_language_system": "跟随系统",
+    "settings_language_hint": "重启后生效。",
     "always_on_top": "始终置顶",
     "settings_title": "设置",
     "about_title": "关于",

@@ -1,5 +1,8 @@
 {
     "popup_title": "Claude Usage Monitor",
+    "settings_language": "언어",
+    "settings_language_system": "시스템 기본값",
+    "settings_language_hint": "다시 시작하면 적용됩니다.",
     "always_on_top": "항상 위에 표시",
     "settings_title": "설정",
     "about_title": "정보",

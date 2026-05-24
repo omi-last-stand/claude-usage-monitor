@@ -1,5 +1,8 @@
 {
     "popup_title": "Claude Usage Monitor",
+    "settings_language": "言語",
+    "settings_language_system": "システムに従う",
+    "settings_language_hint": "再起動後に反映されます。",
     "always_on_top": "常に前面に表示",
     "settings_title": "設定",
     "about_title": "バージョン情報",

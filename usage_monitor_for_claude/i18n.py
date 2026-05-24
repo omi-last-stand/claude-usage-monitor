@@ -56,13 +56,19 @@ def detect_lang_code(lang: str) -> str:
 
 
 def load_translations() -> dict[str, Any]:
-    """Load translations for the configured or detected system language, fallback to English."""
-    from .settings import LANGUAGE
+    """Load translations for the chosen or detected language, with English fallback.
 
-    if LANGUAGE:
-        lang_file = LOCALE_DIR / f'{LANGUAGE}.json'
-        if lang_file.exists():
-            return json.loads(lang_file.read_text(encoding='utf-8'))
+    Resolution order: the language chosen in the settings window (saved to the
+    INI), then the ``language`` JSON setting, then the detected system locale.
+    """
+    from .settings import LANGUAGE
+    from .widget_state import load_language
+
+    for candidate in (load_language(), LANGUAGE):
+        if candidate:
+            lang_file = LOCALE_DIR / f'{candidate}.json'
+            if lang_file.exists():
+                return json.loads(lang_file.read_text(encoding='utf-8'))
 
     lang = locale.getlocale()[0] or ''
     lang_code = detect_lang_code(lang)
