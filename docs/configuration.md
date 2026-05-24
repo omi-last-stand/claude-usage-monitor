@@ -197,7 +197,7 @@ Run the monitor as a resident, always-on-top desktop widget in addition to the t
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `widget_mode` | `false` | `true` opens a resident always-on-top widget at startup that stays on screen. Click it to toggle the compact/expanded view; right-click for its menu (always on top, settings, about, quit) |
+| `widget_mode` | `true` | On by default: the app runs as a resident always-on-top widget. Click it to toggle the compact/expanded view; right-click for its menu (always on top, settings, about, quit). Set `false` for the classic tray-icon popup. |
 | `widget_hide_account` | `false` | `true` hides the account row (email and plan) in the widget |
 
 In widget mode the window position, the always-on-top state, and the per-field show / collapse / hide configuration are saved to `ClaudeUsageMonitor.ini` next to the EXE (managed through the widget's **Settings** window), not in this JSON file.

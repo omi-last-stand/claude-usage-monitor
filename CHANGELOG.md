@@ -15,7 +15,7 @@ First release of the fork, based on Usage Monitor for Claude (upstream v1.15.1).
 
 ### Added
 
-- Resident always-on-top widget mode (`widget_mode`): the popup stays on screen instead of dismissing
+- Resident always-on-top widget, on by default: the app runs as a widget that stays on screen instead of dismissing (set `widget_mode: false` for the classic tray-icon popup)
 - Compact view with click-to-expand, drag-to-move, and a remembered window position (restored next launch; off-screen coordinates are auto-corrected; the first run opens centered)
 - Right-click widget menu: always-on-top toggle, settings, about, quit
 - Settings window to choose which usage fields are shown - per field show / collapse (hidden in the compact view, shown when expanded) / hide - with drag-to-reorder

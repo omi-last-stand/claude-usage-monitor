@@ -69,7 +69,7 @@ claude.ai・Claude Code・各IDE拡張で共有されるレート制限の残量
 - 自分でビルドする場合は後述の「ソースからビルド」を参照してください。
 
 > [!TIP]
-> 常駐ウィジェットとして使う場合は、設定ファイルに `{"widget_mode": true}` を指定します（「設定」の項を参照）。
+> 常駐ウィジェットは既定で有効です。トレイアイコン＋ポップアップ（本家相当）の挙動にしたい場合は、設定ファイルに `{"widget_mode": false}` を指定します（「設定」の項を参照）。
 
 ### 使い方
 
@@ -95,7 +95,6 @@ claude.ai・Claude Code・各IDE拡張で共有されるレート制限の残量
 
 ```json
 {
-  "widget_mode": true,
   "poll_interval": 180,
   "bar_fg": "#00cc66"
 }
@@ -197,7 +196,7 @@ Claude Usage Monitor shows your Claude rate-limit usage on the desktop at a glan
 - To build it yourself, see "Building from source" below.
 
 > [!TIP]
-> To use it as a resident widget, set `{"widget_mode": true}` in the settings file (see "Configuration").
+> The resident widget is on by default. For the classic tray-icon popup instead, set `{"widget_mode": false}` in the settings file (see "Configuration").
 
 ### How to use
 
@@ -223,7 +222,6 @@ Example (`usage-monitor-settings.json`):
 
 ```json
 {
-  "widget_mode": true,
   "poll_interval": 180,
   "bar_fg": "#00cc66"
 }

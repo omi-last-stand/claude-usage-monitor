@@ -293,8 +293,10 @@ TOOLTIP_FIELDS: list[str] = _S.get('tooltip_fields', ['five_hour', 'seven_day'])
 # Popup fields
 POPUP_FIELDS: list[str] = _S.get('popup_fields', ['*'])
 
-# Widget mode: always-on-top resident widget that toggles compact/expanded on click
-WIDGET_MODE: bool = _S.get('widget_mode', False)
+# Widget mode: always-on-top resident widget that toggles compact/expanded on click.
+# On by default - it is this fork's primary mode; set widget_mode false for the
+# classic upstream-style tray icon plus dismissable popup.
+WIDGET_MODE: bool = _S.get('widget_mode', True)
 WIDGET_HIDE_ACCOUNT: bool = _S.get('widget_hide_account', False)
 
 # Tray icon color theme (replaces registry-based auto-detection).
