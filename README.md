@@ -63,7 +63,7 @@ claude.ai・Claude Code・各IDE拡張で共有されるレート制限の残量
 
 ### 入手と実行
 
-**単体のexeだけで動きます。** インストール不要・追加ファイル不要です。`ClaudeUsageMonitor.exe` を好きな場所に置いて実行するだけです。設定・状態ファイル（後述）は必要に応じて exe と同じフォルダに作られますが、いずれも任意で、無くても既定値で動作します。
+**単体のexeだけで動きます。** インストール不要・追加ファイル不要です。`ClaudeUsageMonitor.exe` を好きな場所に置いて実行するだけです。状態ファイル（`ClaudeUsageMonitor.ini`）はアプリが exe と同じフォルダに自動生成し、詳細設定ファイル（`usage-monitor-settings.json`）は任意で、置けば読み込みます。どちらが無くても既定値で動作します。
 
 - プレビルド版は本リポジトリの [Releases](https://github.com/omi-last-stand/claude-usage-monitor/releases) から入手できます（公開されている場合）。
 - 自分でビルドする場合は後述の「ソースからビルド」を参照してください。
@@ -190,7 +190,7 @@ Claude Usage Monitor shows your Claude rate-limit usage on the desktop at a glan
 
 ### Quick start
 
-**Just the single EXE runs.** No installation, no extra files. Drop `ClaudeUsageMonitor.exe` anywhere and run it. The settings/state files (below) are created next to the EXE as needed, but both are optional and the app works with defaults if they are absent.
+**Just the single EXE runs.** No installation, no extra files. Drop `ClaudeUsageMonitor.exe` anywhere and run it. The widget-state file (`ClaudeUsageMonitor.ini`) is created next to the EXE automatically; the optional `usage-monitor-settings.json` is read if you add one. The app works with defaults if neither is present.
 
 - Prebuilt binaries are on the repo's [Releases](https://github.com/omi-last-stand/claude-usage-monitor/releases) page (when published).
 - To build it yourself, see "Building from source" below.

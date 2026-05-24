@@ -27,7 +27,7 @@ First release of the fork, based on Usage Monitor for Claude (upstream v1.15.1).
 ### Changed
 
 - Renamed to "Claude Usage Monitor"; the executable is `ClaudeUsageMonitor.exe`
-- Settings and widget state are stored in `ClaudeUsageMonitor.ini` next to the executable; the app no longer uses the Windows Registry
+- Widget state is stored in `ClaudeUsageMonitor.ini` next to the executable (optional advanced settings remain in `usage-monitor-settings.json`); the app no longer uses the Windows Registry
 - Autostart ("Start with Windows") now uses a Startup-folder shortcut instead of a registry entry
 - The widget UI (right-click menu, settings window, about dialog) is fully localized across all 13 languages
 

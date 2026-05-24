@@ -80,7 +80,7 @@ class UsageMonitorForClaude:
         self.restart_requested = False
 
         self.icon = pystray.Icon(
-            'usage_monitor',
+            'claude_usage_monitor',
             icon=create_icon_image(0, 0, self._light_taskbar),
             title=T['loading'],
             menu=pystray.Menu(

@@ -181,6 +181,10 @@ footer {
    clicking the body toggles between compact and the full (expanded) view. */
 body.widget { cursor: pointer; }
 
+/* The resident widget is not "closed" - collapse it by clicking, quit via the
+   right-click menu. Hide the popup's close button in widget mode. */
+body.widget #closeBtn { display: none; }
+
 body.widget.compact {
     padding: 8px 12px;
     gap: 8px;
