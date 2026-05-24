@@ -27,8 +27,7 @@ def _make_app(thresholds: list[float] | None = None) -> UsageMonitorForClaude:
     if thresholds is None:
         thresholds = [80, 95]
     with patch('usage_monitor_for_claude.app.pystray'), \
-         patch('usage_monitor_for_claude.app.create_icon_image'), \
-         patch('usage_monitor_for_claude.app.taskbar_uses_light_theme', return_value=False):
+         patch('usage_monitor_for_claude.app.create_icon_image'):
         app = UsageMonitorForClaude()
     app.icon = MagicMock()
     app._thresholds_patch = patch('usage_monitor_for_claude.app.get_alert_thresholds', return_value=thresholds)
@@ -1019,53 +1018,6 @@ class TestRenderTray(unittest.TestCase):
         self.app._render_tray()
 
         self.assertFalse(mock_icon.call_args.kwargs['extra_usage_available'])
-
-
-# ---------------------------------------------------------------------------
-# _on_theme_changed
-# ---------------------------------------------------------------------------
-
-class TestOnThemeChanged(unittest.TestCase):
-    """Tests for _on_theme_changed() theme switch handling."""
-
-    def setUp(self):
-        self.app = _make_app()
-
-    def tearDown(self):
-        _cleanup(self.app)
-
-    @patch('usage_monitor_for_claude.app.format_tooltip', return_value='tooltip')
-    @patch('usage_monitor_for_claude.app.create_icon_image')
-    @patch('usage_monitor_for_claude.app.taskbar_uses_light_theme', return_value=True)
-    def test_theme_change_re_renders(self, _theme, mock_icon, _tooltip):
-        """Theme change re-renders the tray icon."""
-        self.app._light_taskbar = False
-        self.app._last_response = {'five_hour': {'utilization': 50.0}, 'seven_day': {'utilization': 20.0}}
-
-        self.app._on_theme_changed()
-
-        self.assertTrue(self.app._light_taskbar)
-        mock_icon.assert_called_once_with(50.0, 20.0, True, mode_top='utilization', mode_bottom='utilization', time_pct_top=None, time_pct_bottom=None, extra_usage_available=False)
-
-    @patch('usage_monitor_for_claude.app.taskbar_uses_light_theme', return_value=False)
-    def test_same_theme_no_render(self, _theme):
-        """No re-render when theme hasn't changed."""
-        self.app._light_taskbar = False
-        self.app._last_response = {'five_hour': {'utilization': 50.0}}
-
-        with patch.object(self.app, '_render_tray') as mock_render:
-            self.app._on_theme_changed()
-            mock_render.assert_not_called()
-
-    @patch('usage_monitor_for_claude.app.taskbar_uses_light_theme', return_value=True)
-    def test_theme_change_without_data_no_render(self, _theme):
-        """Theme change without any data does not render."""
-        self.app._light_taskbar = False
-        self.app._last_response = {}
-
-        with patch.object(self.app, '_render_tray') as mock_render:
-            self.app._on_theme_changed()
-            mock_render.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

@@ -23,7 +23,8 @@ from . import __version__
 from .claude_cli import CHANGELOG_URL, find_installations
 from .formatting import elapsed_pct, expand_popup_fields, field_period, format_credits, midnight_positions, popup_label, time_until
 from .i18n import T
-from .settings import BAR_BG, BAR_DIVIDER, BAR_FG, BAR_FG_WARN, BAR_MARKER, BG, FG, FG_DIM, FG_HEADING, FG_LINK, POPUP_FIELDS
+from .settings import BAR_BG, BAR_DIVIDER, BAR_FG, BAR_FG_WARN, BAR_MARKER, BG, FG, FG_DIM, FG_HEADING, FG_LINK, POPUP_FIELDS, WIDGET_HIDE_ACCOUNT, WIDGET_MODE
+from .widget_state import load_widget_state, save_window_position
 
 _POPUP_DIR = Path(__file__).parent / 'popup'
 _BASELINE_DPI = 96
@@ -62,6 +63,7 @@ def _usage_entries(usage: dict[str, Any]) -> list[tuple[str, dict[str, Any] | No
 
 def _snapshot_to_dict(
     snap: CacheSnapshot, installations: list[dict[str, str]] | None = None, next_poll_time: float | None = None,
+    *, hide_account: bool = False,
 ) -> dict[str, Any]:
     """Convert a CacheSnapshot to a JSON-serializable dict for the popup JS.
 
@@ -73,11 +75,14 @@ def _snapshot_to_dict(
         Pre-computed installation list, or None to detect now.
     next_poll_time : float or None
         Unix timestamp of the next scheduled API poll.
+    hide_account : bool
+        When True, omit the account profile so the popup never renders the
+        plan name or email.
     """
     # Profile - truthiness check (not `is not None`): hides the account section when the API
     # returns an empty or incomplete response, instead of rendering empty Email/Plan fields.
     profile = None
-    if snap.profile:
+    if snap.profile and not hide_account:
         account = snap.profile.get('account', {})
         org = snap.profile.get('organization', {})
         profile = {
@@ -167,7 +172,8 @@ def _init_config(snap: CacheSnapshot, next_poll_time: float | None = None) -> di
             'duration_hm': T['duration_hm'], 'duration_m': T['duration_m'], 'duration_s': T['duration_s'],
         },
         'app_version': __version__,
-        'data': _snapshot_to_dict(snap, next_poll_time=next_poll_time),
+        'widget_mode': WIDGET_MODE,
+        'data': _snapshot_to_dict(snap, next_poll_time=next_poll_time, hide_account=WIDGET_HIDE_ACCOUNT),
     }
 
 
@@ -186,6 +192,19 @@ class _PopupApi:
 
     def open_url(self) -> None:
         webbrowser.open(CHANGELOG_URL)
+
+    def quit_app(self) -> None:
+        self._popup.app.on_quit()
+
+    def toggle_always_on_top(self) -> bool:
+        """Toggle always-on-top and return the new state for the menu checkmark."""
+        return self._popup.toggle_always_on_top()
+
+    def open_settings(self) -> None:
+        self._popup.app.open_settings()
+
+    def show_about(self) -> None:
+        self._popup.show_about()
 
     def report_height(self, height: int) -> None:
         """Called by JS ResizeObserver when content height changes."""
@@ -206,7 +225,7 @@ class UsagePopup:
     WIDTH = 340
     _CHECK_MS = 2000
 
-    def __init__(self, app: UsageMonitorForClaude) -> None:
+    def __init__(self, app: UsageMonitorForClaude, *, widget_mode: bool = False) -> None:
         """Create and display a popup window with usage details.
 
         Blocks the calling thread until the window is closed.
@@ -216,8 +235,14 @@ class UsagePopup:
         ----------
         app : UsageMonitorForClaude
             Parent application providing ``cache`` for data access.
+        widget_mode : bool
+            When True, run as a resident always-on-top widget: the
+            click-outside/Escape/focus dismiss watcher is not installed,
+            so the window stays open until explicitly closed.
         """
         self.app = app
+        self._widget_mode = widget_mode
+        self._always_on_top = True
         self._running = True
         self._closed = threading.Event()
         self._popup_hwnd = 0
@@ -226,13 +251,21 @@ class UsagePopup:
         snap = app.cache.snapshot
         self._last_version = snap.version
 
+        # Resident widget: restore the last saved window position (logical pixels).
+        self._saved_pos: tuple[int, int] | None = None
+        self._positioned = False
+        if widget_mode:
+            state = load_widget_state()
+            if state.window_x is not None and state.window_y is not None:
+                self._saved_pos = (state.window_x, state.window_y)
+
         api = _PopupApi(self)
 
         self._window = webview.create_window(
             '', url=str(_POPUP_DIR / 'popup.html'),
             width=self.WIDTH, height=initial_height,
             resizable=False, frameless=True, shadow=False,
-            easy_drag=False,
+            easy_drag=widget_mode,
             on_top=True, hidden=True,
             background_color=BG,
             js_api=api,
@@ -240,7 +273,10 @@ class UsagePopup:
         self._shown = False
         self._window.events.loaded += self._on_loaded
         self._window.events.closed += self._on_window_closed
-        threading.Thread(target=self._dismiss_watch, daemon=True).start()
+        if widget_mode:
+            threading.Thread(target=self._menu_dismiss_watch, daemon=True).start()
+        else:
+            threading.Thread(target=self._dismiss_watch, daemon=True).start()
         self._closed.wait()
 
     def _on_loaded(self) -> None:
@@ -388,6 +424,51 @@ class UsagePopup:
 
         self._close()
 
+    def _close_menu(self) -> None:
+        """Ask the page to close the right-click context menu (no-op if closed)."""
+        try:
+            self._window.evaluate_js('closeContextMenu()')
+        except Exception:
+            pass
+
+    def _menu_dismiss_watch(self) -> None:
+        """Close the context menu when the user clicks outside the widget.
+
+        Widget mode only.  A low-level mouse hook watches for clicks outside
+        the window bounds and dismisses the right-click menu.  The widget is
+        never closed or collapsed.  The dismiss runs on a worker thread so the
+        hook callback stays fast.
+        """
+        _call_next = ctypes.windll.user32.CallNextHookEx
+        _call_next.argtypes = [ctypes.wintypes.HANDLE, ctypes.c_int, ctypes.wintypes.WPARAM, ctypes.wintypes.LPARAM]
+        _call_next.restype = ctypes.c_long
+
+        class MSLLHOOKSTRUCT(ctypes.Structure):
+            _fields_ = [('pt', ctypes.wintypes.POINT), ('mouseData', ctypes.wintypes.DWORD),
+                         ('flags', ctypes.wintypes.DWORD), ('time', ctypes.wintypes.DWORD),
+                         ('dwExtraInfo', ctypes.POINTER(ctypes.c_ulong))]
+
+        @ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_int, ctypes.wintypes.WPARAM, ctypes.wintypes.LPARAM)
+        def mouse_proc(code, wparam, lparam):
+            if code >= 0 and wparam == 0x0201:  # WM_LBUTTONDOWN
+                popup_hwnd = self._popup_hwnd
+                if popup_hwnd and self._shown:
+                    rect = ctypes.wintypes.RECT()
+                    ctypes.windll.user32.GetWindowRect(popup_hwnd, ctypes.byref(rect))
+                    info = ctypes.cast(lparam, ctypes.POINTER(MSLLHOOKSTRUCT)).contents
+                    if not (rect.left <= info.pt.x <= rect.right and rect.top <= info.pt.y <= rect.bottom):
+                        threading.Thread(target=self._close_menu, daemon=True).start()
+            return _call_next(None, code, wparam, lparam)
+
+        mouse_hook = ctypes.windll.user32.SetWindowsHookExW(14, mouse_proc, None, 0)  # WH_MOUSE_LL
+
+        try:
+            msg = ctypes.wintypes.MSG()
+            while self._running and ctypes.windll.user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
+                pass
+        finally:
+            ctypes.windll.user32.UnhookWindowsHookEx(mouse_hook)
+
     def _on_window_closed(self) -> None:
         self._running = False
         self._closed.set()
@@ -400,6 +481,36 @@ class UsagePopup:
             pass
         self._closed.set()
 
+    def toggle_always_on_top(self) -> bool:
+        """Toggle the window's always-on-top state. Returns the new state."""
+        self._always_on_top = not self._always_on_top
+        HWND_TOPMOST = -1
+        HWND_NOTOPMOST = -2
+        SWP_NOMOVE = 0x0002
+        SWP_NOSIZE = 0x0001
+        insert_after = HWND_TOPMOST if self._always_on_top else HWND_NOTOPMOST
+        ctypes.windll.user32.SetWindowPos(
+            ctypes.wintypes.HWND(self._popup_hwnd), ctypes.wintypes.HWND(insert_after),
+            0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE,
+        )
+        return self._always_on_top
+
+    def show_about(self) -> None:
+        """Show a version/about dialog that credits the upstream author."""
+        message = (
+            f'Claude Usage Monitor v{__version__}\n'
+            'Claudeの使用量を常時表示する常駐ウィジェットです。\n\n'
+            'https://github.com/omi-last-stand/claude-usage-monitor\n\n'
+            '【謝辞】\n'
+            'このアプリは、本家 Jens Duttke 氏の素晴らしい作品を\n'
+            'ベースにさせていただきました。心より感謝します。\n\n'
+            '[Acknowledgement]\n'
+            'This app is built upon the wonderful "Usage Monitor for Claude"\n'
+            'by Jens Duttke. With sincere gratitude.\n\n'
+            'https://github.com/jens-duttke/usage-monitor-for-claude'
+        )
+        ctypes.windll.user32.MessageBoxW(self._popup_hwnd, message, 'バージョン情報', 0x40)
+
     def _update_loop(self) -> None:
         """Poll for data changes and push updates to the popup."""
         cached_installations = [{'name': i.name, 'version': i.version} for i in find_installations()]
@@ -408,6 +519,8 @@ class UsagePopup:
             time.sleep(self._CHECK_MS / 1000)
             if not self._running:
                 break
+            if self._widget_mode:
+                self._save_position_if_moved()
             try:
                 snap = self.app.cache.snapshot
                 next_poll_time = self.app._next_poll_time
@@ -417,7 +530,7 @@ class UsagePopup:
                     self._last_version = snap.version
                     cached_installations = [{'name': i.name, 'version': i.version} for i in find_installations()]
                 last_next_poll_time = next_poll_time
-                data = _snapshot_to_dict(snap, installations=cached_installations, next_poll_time=next_poll_time)
+                data = _snapshot_to_dict(snap, installations=cached_installations, next_poll_time=next_poll_time, hide_account=WIDGET_HIDE_ACCOUNT)
                 self._window.evaluate_js(f'updateData({json.dumps(data)})')
             except Exception:
                 break
@@ -464,6 +577,54 @@ class UsagePopup:
 
         return int(x / scale), int(y / scale)
 
+    def _center_position(self, physical_width: int, physical_height: int) -> tuple[int, int]:
+        """Calculate a centered position on the monitor that owns the taskbar.
+
+        Used as the first-run default (no saved position) so the widget
+        appears clearly in the middle of the screen instead of tucked
+        behind the taskbar.
+
+        Parameters
+        ----------
+        physical_width : int
+            Window width in physical pixels.
+        physical_height : int
+            Window height in physical pixels.
+
+        Returns
+        -------
+        tuple[int, int]
+            Logical (x, y) coordinates.
+        """
+        tray_hwnd = ctypes.windll.user32.FindWindowW('Shell_TrayWnd', None)
+        hmon = ctypes.windll.user32.MonitorFromWindow(tray_hwnd, 2)  # MONITOR_DEFAULTTONEAREST
+
+        mon_info = _MONITORINFO()
+        mon_info.cbSize = ctypes.sizeof(_MONITORINFO)
+        ctypes.windll.user32.GetMonitorInfoW(hmon, ctypes.byref(mon_info))
+        work = mon_info.rcWork
+
+        dpi = ctypes.windll.user32.GetDpiForWindow(self._popup_hwnd) or ctypes.windll.user32.GetDpiForSystem()
+        scale = dpi / _BASELINE_DPI
+
+        x = work.left + (work.right - work.left - physical_width) // 2
+        y = work.top + (work.bottom - work.top - physical_height) // 2
+
+        return int(x / scale), int(y / scale)
+
+    def _is_position_visible(self, x_logical: int, y_logical: int) -> bool:
+        """Return True if the logical top-left point lies on some monitor.
+
+        Validates a restored window position so a spot that is now off-screen
+        (negative coordinates, a disconnected monitor, or a resolution change)
+        falls back to the centered default instead of vanishing.
+        """
+        dpi = ctypes.windll.user32.GetDpiForWindow(self._popup_hwnd) or ctypes.windll.user32.GetDpiForSystem()
+        scale = dpi / _BASELINE_DPI
+        point = ctypes.wintypes.POINT(int(x_logical * scale), int(y_logical * scale))
+        # MONITOR_DEFAULTTONULL = 0 -> returns NULL when the point is off every monitor
+        return bool(ctypes.windll.user32.MonitorFromPoint(point, 0))
+
     def _resize_and_position(self, height: int) -> None:
         """Resize the window and reposition it near the system tray.
 
@@ -481,5 +642,49 @@ class UsagePopup:
         physical_width = int(self.WIDTH * scale)
         physical_height = int(height * scale)
         self._window.resize(self.WIDTH, height)
-        x, y = self._tray_position(physical_width, physical_height)
+
+        # In widget mode, position the window only on the first layout.
+        # After that the user owns the position (drag), so height changes
+        # (expand/collapse, data refresh) must not snap it back.
+        if self._widget_mode and self._positioned:
+            return
+
+        if self._widget_mode and self._saved_pos is not None and self._is_position_visible(*self._saved_pos):
+            x, y = self._saved_pos
+        elif self._widget_mode:
+            x, y = self._center_position(physical_width, physical_height)
+        else:
+            x, y = self._tray_position(physical_width, physical_height)
         self._window.move(x, y)
+        self._positioned = True
+        if self._widget_mode:
+            self._saved_pos = (x, y)
+            save_window_position(x, y)
+
+    def _save_position_if_moved(self) -> None:
+        """Persist the window's top-left position after the user drags it.
+
+        Compares the current position (converted to logical pixels) against
+        the last saved position and writes to the INI file only when it
+        changed by more than a couple of pixels, to ride out DPI rounding.
+        """
+        if not self._popup_hwnd:
+            return
+
+        rect = ctypes.wintypes.RECT()
+        ctypes.windll.user32.GetWindowRect(self._popup_hwnd, ctypes.byref(rect))
+        dpi = ctypes.windll.user32.GetDpiForWindow(self._popup_hwnd) or ctypes.windll.user32.GetDpiForSystem()
+        scale = dpi / _BASELINE_DPI
+        x = int(rect.left / scale)
+        y = int(rect.top / scale)
+
+        # Ignore off-screen coordinates seen briefly at startup before the
+        # window is placed; saving them would hide the widget next launch.
+        if x < 0 or y < 0:
+            return
+
+        if self._saved_pos is not None and abs(self._saved_pos[0] - x) <= 2 and abs(self._saved_pos[1] - y) <= 2:
+            return
+
+        self._saved_pos = (x, y)
+        save_window_position(x, y)

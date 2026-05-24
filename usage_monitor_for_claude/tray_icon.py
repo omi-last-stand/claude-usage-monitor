@@ -2,26 +2,19 @@
 Tray Icon
 ==========
 
-Creates monochrome system tray icons and detects the Windows taskbar theme.
+Creates monochrome system tray icons.  Icon colors follow the
+``light_taskbar`` setting (no registry access - project policy).
 """
 from __future__ import annotations
 
-import ctypes
 import functools
 import os
-import winreg
-from typing import Callable
 
 from PIL import Image, ImageDraw, ImageFont
 
 from .settings import ICON_DARK, ICON_LIGHT
 
-__all__ = ['load_font', 'taskbar_uses_light_theme', 'watch_theme_change', 'create_icon_image', 'create_status_image']
-
-# Theme registry
-THEME_REG_KEY = r'Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'
-THEME_REG_VALUE = 'SystemUsesLightTheme'
-REG_NOTIFY_CHANGE_LAST_SET = 0x00000004
+__all__ = ['load_font', 'create_icon_image', 'create_status_image']
 
 TRANSPARENT = (0, 0, 0, 0)
 
@@ -41,33 +34,6 @@ def load_font(size: int, symbol: bool = False) -> ImageFont.FreeTypeFont | Image
             continue
 
     return ImageFont.load_default()
-
-
-def taskbar_uses_light_theme() -> bool:
-    """Return True if the Windows taskbar uses the light theme.
-
-    Reads ``SystemUsesLightTheme`` from the Personalize registry key.
-    Returns False (dark) if the value cannot be read.
-    """
-    try:
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, THEME_REG_KEY) as key:
-            value, _ = winreg.QueryValueEx(key, THEME_REG_VALUE)
-            return bool(value)
-    except OSError:
-        return False
-
-
-def watch_theme_change(callback: Callable[[], None]) -> None:
-    """Block the current thread and call *callback* whenever the taskbar theme changes.
-
-    Uses ``RegNotifyChangeKeyValue`` to sleep until the registry key
-    is modified, avoiding any polling.  Designed to run in a daemon thread.
-    """
-    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, THEME_REG_KEY, 0, winreg.KEY_READ) as key:
-        while True:
-            if ctypes.windll.advapi32.RegNotifyChangeKeyValue(int(key), False, REG_NOTIFY_CHANGE_LAST_SET, None, False) != 0:
-                return
-            callback()
 
 
 def create_icon_image(
@@ -115,7 +81,7 @@ def create_icon_image(
     stroke_width = 0
     any_exhausted = pct_top >= 100 or pct_bottom >= 100
     if any_exhausted and not extra_usage_available:
-        text, font = '\u2715', load_font(36, symbol=True)
+        text, font = '✕', load_font(36, symbol=True)
         stroke_width = 2
     elif any_exhausted:
         text, font = '$', load_font(42)

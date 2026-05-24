@@ -52,7 +52,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='UsageMonitorForClaude',
+    name='ClaudeUsageMonitor',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

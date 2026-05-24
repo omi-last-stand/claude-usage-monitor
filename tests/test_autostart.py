@@ -2,168 +2,171 @@
 Autostart Tests
 ================
 
-Unit tests for Windows autostart registry management.
+Unit tests for Windows autostart management via a Startup-folder shortcut.
+The registry is never touched (project policy); persistence is a ``.lnk``
+file placed in the user's Startup folder.
 """
 from __future__ import annotations
 
 import sys
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import usage_monitor_for_claude.autostart as autostart_mod
 
 
+class TestShortcutPath(unittest.TestCase):
+    """Tests for _shortcut_path()."""
+
+    @patch.dict('os.environ', {'APPDATA': r'C:\Users\me\AppData\Roaming'})
+    def test_points_into_startup_folder(self):
+        """Shortcut path is the named .lnk inside the Startup folder."""
+        path = autostart_mod._shortcut_path()
+
+        self.assertEqual(
+            path,
+            Path(r'C:\Users\me\AppData\Roaming')
+            / 'Microsoft' / 'Windows' / 'Start Menu' / 'Programs' / 'Startup'
+            / 'ClaudeUsageMonitor.lnk',
+        )
+
+    @patch.dict('os.environ', {'APPDATA': r'C:\Users\me\AppData\Roaming'})
+    def test_uses_lnk_filename(self):
+        """Shortcut file name ends in .lnk."""
+        self.assertEqual(autostart_mod._shortcut_path().name, 'ClaudeUsageMonitor.lnk')
+
+
+class TestPsLiteral(unittest.TestCase):
+    """Tests for _ps_literal() PowerShell single-quoted escaping."""
+
+    def test_wraps_in_single_quotes(self):
+        """Plain string is wrapped in single quotes."""
+        self.assertEqual(autostart_mod._ps_literal(r'C:\App\app.exe'), r"'C:\App\app.exe'")
+
+    def test_doubles_embedded_single_quotes(self):
+        """Embedded single quotes are doubled (PowerShell escaping)."""
+        self.assertEqual(autostart_mod._ps_literal("a'b"), "'a''b'")
+
+
 class TestIsAutostartEnabled(unittest.TestCase):
     """Tests for is_autostart_enabled()."""
 
-    @patch.object(autostart_mod, 'winreg')
-    def test_returns_true_when_value_exists(self, mock_winreg):
-        """Registry entry found returns True."""
-        mock_key = MagicMock()
-        mock_winreg.OpenKey.return_value.__enter__ = MagicMock(return_value=mock_key)
-        mock_winreg.OpenKey.return_value.__exit__ = MagicMock(return_value=False)
-
+    @patch.object(Path, 'is_file', return_value=True)
+    def test_returns_true_when_shortcut_exists(self, mock_is_file):
+        """Existing Startup shortcut returns True."""
         self.assertTrue(autostart_mod.is_autostart_enabled())
-        mock_winreg.QueryValueEx.assert_called_once_with(mock_key, autostart_mod.AUTOSTART_REG_NAME)
+        mock_is_file.assert_called_once()
 
-    @patch.object(autostart_mod, 'winreg')
-    def test_returns_false_when_key_missing(self, mock_winreg):
-        """FileNotFoundError on key open returns False."""
-        mock_winreg.OpenKey.side_effect = FileNotFoundError
-
+    @patch.object(Path, 'is_file', return_value=False)
+    def test_returns_false_when_shortcut_missing(self, mock_is_file):
+        """Missing Startup shortcut returns False."""
         self.assertFalse(autostart_mod.is_autostart_enabled())
+        mock_is_file.assert_called_once()
 
-    @patch.object(autostart_mod, 'winreg')
-    def test_returns_false_when_value_missing(self, mock_winreg):
-        """Key exists but value does not returns False."""
-        mock_key = MagicMock()
-        mock_winreg.OpenKey.return_value.__enter__ = MagicMock(return_value=mock_key)
-        mock_winreg.OpenKey.return_value.__exit__ = MagicMock(return_value=False)
-        mock_winreg.QueryValueEx.side_effect = FileNotFoundError
+    @patch.dict('os.environ', {'APPDATA': r'C:\Users\me\AppData\Roaming'})
+    def test_checks_the_startup_shortcut_path(self):
+        """Existence is checked on the Startup-folder shortcut path."""
+        with patch.object(autostart_mod, '_shortcut_path') as mock_path:
+            mock_path.return_value = MagicMock(spec=Path)
+            mock_path.return_value.is_file.return_value = True
 
-        self.assertFalse(autostart_mod.is_autostart_enabled())
+            self.assertTrue(autostart_mod.is_autostart_enabled())
 
-    @patch.object(autostart_mod, 'winreg')
-    def test_opens_correct_registry_path(self, mock_winreg):
-        """Opens HKCU Run key with correct path."""
-        mock_winreg.OpenKey.return_value.__enter__ = MagicMock()
-        mock_winreg.OpenKey.return_value.__exit__ = MagicMock(return_value=False)
-
-        autostart_mod.is_autostart_enabled()
-
-        mock_winreg.OpenKey.assert_called_once_with(
-            mock_winreg.HKEY_CURRENT_USER, autostart_mod.AUTOSTART_REG_KEY,
-        )
+            mock_path.assert_called_once_with()
+            mock_path.return_value.is_file.assert_called_once_with()
 
 
 class TestSetAutostart(unittest.TestCase):
     """Tests for set_autostart()."""
 
-    @patch.object(autostart_mod, 'winreg')
-    def test_enable_sets_quoted_executable_path(self, mock_winreg):
-        """Enabling autostart writes the quoted sys.executable path."""
-        mock_key = MagicMock()
-        mock_winreg.OpenKey.return_value.__enter__ = MagicMock(return_value=mock_key)
-        mock_winreg.OpenKey.return_value.__exit__ = MagicMock(return_value=False)
-
+    @patch.object(autostart_mod, 'subprocess')
+    def test_enable_invokes_powershell(self, mock_subprocess):
+        """Enabling autostart runs PowerShell to create the shortcut."""
         autostart_mod.set_autostart(True)
 
-        mock_winreg.SetValueEx.assert_called_once_with(
-            mock_key, autostart_mod.AUTOSTART_REG_NAME, 0,
-            mock_winreg.REG_SZ, f'"{sys.executable}"',
-        )
+        mock_subprocess.run.assert_called_once()
+        argv = mock_subprocess.run.call_args[0][0]
+        self.assertEqual(argv[0], 'powershell')
+        self.assertIn('-Command', argv)
 
-    @patch.object(autostart_mod, 'winreg')
-    def test_disable_deletes_registry_value(self, mock_winreg):
-        """Disabling autostart removes the registry value."""
-        mock_key = MagicMock()
-        mock_winreg.OpenKey.return_value.__enter__ = MagicMock(return_value=mock_key)
-        mock_winreg.OpenKey.return_value.__exit__ = MagicMock(return_value=False)
-
-        autostart_mod.set_autostart(False)
-
-        mock_winreg.DeleteValue.assert_called_once_with(mock_key, autostart_mod.AUTOSTART_REG_NAME)
-        mock_winreg.SetValueEx.assert_not_called()
-
-    @patch.object(autostart_mod, 'winreg')
-    def test_disable_ignores_missing_value(self, mock_winreg):
-        """Disabling when value already absent does not raise."""
-        mock_key = MagicMock()
-        mock_winreg.OpenKey.return_value.__enter__ = MagicMock(return_value=mock_key)
-        mock_winreg.OpenKey.return_value.__exit__ = MagicMock(return_value=False)
-        mock_winreg.DeleteValue.side_effect = FileNotFoundError
-
-        autostart_mod.set_autostart(False)  # should not raise
-
-    @patch.object(autostart_mod, 'winreg')
-    def test_enable_opens_with_set_value_permission(self, mock_winreg):
-        """Opening registry for write uses KEY_SET_VALUE."""
-        mock_winreg.OpenKey.return_value.__enter__ = MagicMock()
-        mock_winreg.OpenKey.return_value.__exit__ = MagicMock(return_value=False)
-
-        autostart_mod.set_autostart(True)
-
-        mock_winreg.OpenKey.assert_called_once_with(
-            mock_winreg.HKEY_CURRENT_USER, autostart_mod.AUTOSTART_REG_KEY,
-            0, mock_winreg.KEY_SET_VALUE,
-        )
-
-    @patch.object(autostart_mod, 'winreg')
-    def test_enable_uses_current_executable(self, mock_winreg):
-        """Uses sys.executable for the registry value."""
-        mock_key = MagicMock()
-        mock_winreg.OpenKey.return_value.__enter__ = MagicMock(return_value=mock_key)
-        mock_winreg.OpenKey.return_value.__exit__ = MagicMock(return_value=False)
-
+    @patch.object(autostart_mod, 'subprocess')
+    def test_enable_builds_create_shortcut_script(self, mock_subprocess):
+        """The PowerShell script creates a WScript.Shell shortcut and saves it."""
         with patch.object(sys, 'executable', r'C:\Program Files\MyApp\app.exe'):
             autostart_mod.set_autostart(True)
 
-        mock_winreg.SetValueEx.assert_called_once_with(
-            mock_key, autostart_mod.AUTOSTART_REG_NAME, 0,
-            mock_winreg.REG_SZ, r'"C:\Program Files\MyApp\app.exe"',
-        )
+        argv = mock_subprocess.run.call_args[0][0]
+        script = argv[argv.index('-Command') + 1]
+        self.assertIn('CreateShortcut', script)
+        self.assertIn('$s.Save()', script)
+        # The target executable is embedded as a PowerShell literal.
+        self.assertIn(autostart_mod._ps_literal(r'C:\Program Files\MyApp\app.exe'), script)
+
+    @patch.object(autostart_mod, 'subprocess')
+    def test_enable_targets_current_executable(self, mock_subprocess):
+        """The shortcut target is sys.executable."""
+        with patch.object(sys, 'executable', r'C:\Python\pythonw.exe'):
+            autostart_mod.set_autostart(True)
+
+        script = mock_subprocess.run.call_args[0][0][-1]
+        self.assertIn(r'C:\Python\pythonw.exe', script)
+
+    @patch.object(autostart_mod, 'subprocess')
+    def test_enable_writes_to_startup_shortcut_path(self, mock_subprocess):
+        """The shortcut is created at the Startup-folder path."""
+        with patch.object(autostart_mod, '_shortcut_path', return_value=Path(r'C:\Startup\Widget.lnk')):
+            autostart_mod.set_autostart(True)
+
+        script = mock_subprocess.run.call_args[0][0][-1]
+        self.assertIn(autostart_mod._ps_literal(r'C:\Startup\Widget.lnk'), script)
+
+    @patch.object(autostart_mod, 'subprocess')
+    @patch.object(Path, 'unlink')
+    def test_disable_removes_shortcut(self, mock_unlink, mock_subprocess):
+        """Disabling autostart deletes the shortcut and does not run PowerShell."""
+        autostart_mod.set_autostart(False)
+
+        mock_unlink.assert_called_once()
+        mock_subprocess.run.assert_not_called()
+
+    @patch.object(autostart_mod, 'subprocess')
+    def test_disable_unlinks_startup_shortcut_path(self, mock_subprocess):
+        """Disable unlinks exactly the Startup-folder shortcut path."""
+        fake_path = MagicMock(spec=Path)
+        with patch.object(autostart_mod, '_shortcut_path', return_value=fake_path):
+            autostart_mod.set_autostart(False)
+
+        fake_path.unlink.assert_called_once_with()
+        mock_subprocess.run.assert_not_called()
+
+    @patch.object(autostart_mod, 'subprocess')
+    @patch.object(Path, 'unlink', side_effect=FileNotFoundError)
+    def test_disable_ignores_missing_shortcut(self, mock_unlink, mock_subprocess):
+        """Disabling when the shortcut is already absent does not raise."""
+        autostart_mod.set_autostart(False)  # should not raise
+
+        mock_unlink.assert_called_once()
 
 
 class TestSyncAutostartPath(unittest.TestCase):
     """Tests for sync_autostart_path()."""
 
-    @patch.object(autostart_mod, 'winreg')
-    def test_returns_early_when_no_registry_entry(self, mock_winreg):
-        """No registry entry means no update attempted."""
-        mock_winreg.OpenKey.side_effect = FileNotFoundError
-
+    @patch.object(autostart_mod, 'set_autostart')
+    @patch.object(autostart_mod, 'is_autostart_enabled', return_value=False)
+    def test_no_op_when_disabled(self, mock_enabled, mock_set):
+        """No update attempted when autostart is not enabled."""
         autostart_mod.sync_autostart_path()  # should not raise
 
-        mock_winreg.SetValueEx.assert_not_called()
+        mock_set.assert_not_called()
 
     @patch.object(autostart_mod, 'set_autostart')
-    @patch.object(autostart_mod, 'winreg')
-    def test_updates_when_path_differs(self, mock_winreg, mock_set):
-        """Stored path differs from sys.executable triggers update."""
-        mock_key = MagicMock()
-        mock_winreg.OpenKey.return_value.__enter__ = MagicMock(return_value=mock_key)
-        mock_winreg.OpenKey.return_value.__exit__ = MagicMock(return_value=False)
-        mock_winreg.QueryValueEx.return_value = (r'"C:\old\path.exe"', 1)
-
-        with patch.object(sys, 'executable', r'C:\new\path.exe'):
-            autostart_mod.sync_autostart_path()
-
-        mock_set.assert_called_once_with(True)
-
-    @patch.object(autostart_mod, 'set_autostart')
-    @patch.object(autostart_mod, 'winreg')
-    def test_skips_update_when_path_matches(self, mock_winreg, mock_set):
-        """Matching stored path skips the update."""
-        mock_key = MagicMock()
-        mock_winreg.OpenKey.return_value.__enter__ = MagicMock(return_value=mock_key)
-        mock_winreg.OpenKey.return_value.__exit__ = MagicMock(return_value=False)
-
-        expected = f'"{sys.executable}"'
-        mock_winreg.QueryValueEx.return_value = (expected, 1)
-
+    @patch.object(autostart_mod, 'is_autostart_enabled', return_value=True)
+    def test_recreates_shortcut_when_enabled(self, mock_enabled, mock_set):
+        """When enabled, the shortcut is recreated for the current executable."""
         autostart_mod.sync_autostart_path()
 
-        mock_set.assert_not_called()
+        mock_set.assert_called_once_with(True)
 
 
 if __name__ == '__main__':

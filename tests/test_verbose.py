@@ -12,14 +12,12 @@ from unittest.mock import MagicMock, patch
 
 from usage_monitor_for_claude.verbose import (
     _credentials_status,
-    _dotnet_version,
     _dpi_info,
     _package_version,
     _redact_home,
     _row,
     _screen_info,
     _section,
-    _webview2_version,
     print_runtime_diagnostics,
     print_startup_diagnostics,
     setup_console,
@@ -102,115 +100,6 @@ class TestPackageVersion(unittest.TestCase):
     def test_missing_package(self):
         """Non-existent package returns 'not found'."""
         self.assertEqual(_package_version('nonexistent-pkg-12345'), 'not found')
-
-
-class TestWebview2Version(unittest.TestCase):
-    """Tests for _webview2_version() registry lookup."""
-
-    def _mock_open_key(self, versions):
-        """Create a mock winreg.OpenKey that returns versions for matching paths."""
-        from contextlib import contextmanager
-
-        @contextmanager
-        def open_key(root, path):
-            for guid, version in versions:
-                if guid in path:
-                    mock_key = MagicMock()
-                    mock_key.__enter__ = MagicMock(return_value=mock_key)
-                    mock_key.__exit__ = MagicMock(return_value=False)
-                    yield mock_key
-                    return
-            raise OSError('key not found')
-
-        return open_key
-
-    def test_runtime_found(self):
-        """Returns version when Runtime GUID is in registry."""
-        runtime_guid = '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
-        with patch('usage_monitor_for_claude.verbose.winreg') as mock_winreg:
-            mock_winreg.HKEY_CURRENT_USER = 0x80000001
-            mock_winreg.HKEY_LOCAL_MACHINE = 0x80000002
-            mock_winreg.OpenKey = self._mock_open_key([(runtime_guid, '130.0.2849.56')])
-            mock_winreg.QueryValueEx = MagicMock(return_value=('130.0.2849.56', 1))
-            result = _webview2_version()
-        self.assertEqual(result, '130.0.2849.56')
-
-    def test_beta_channel_labeled(self):
-        """Non-Runtime channels include the channel name."""
-        beta_guid = '{2CD8A007-E189-409D-A2C8-9AF4EF3C72AA}'
-        with patch('usage_monitor_for_claude.verbose.winreg') as mock_winreg:
-            mock_winreg.HKEY_CURRENT_USER = 0x80000001
-            mock_winreg.HKEY_LOCAL_MACHINE = 0x80000002
-            mock_winreg.OpenKey = self._mock_open_key([(beta_guid, '131.0.0.1')])
-            mock_winreg.QueryValueEx = MagicMock(return_value=('131.0.0.1', 1))
-            result = _webview2_version()
-        self.assertIn('Beta', result)
-        self.assertIn('131.0.0.1', result)
-
-    def test_not_found(self):
-        """Returns 'not found' when no registry keys exist."""
-        with patch('usage_monitor_for_claude.verbose.winreg') as mock_winreg:
-            mock_winreg.HKEY_CURRENT_USER = 0x80000001
-            mock_winreg.HKEY_LOCAL_MACHINE = 0x80000002
-            mock_winreg.OpenKey = MagicMock(side_effect=OSError)
-            result = _webview2_version()
-        self.assertEqual(result, 'not found')
-
-    def test_zero_version_skipped(self):
-        """Version '0.0.0.0' is treated as not installed."""
-        runtime_guid = '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
-        with patch('usage_monitor_for_claude.verbose.winreg') as mock_winreg:
-            mock_winreg.HKEY_CURRENT_USER = 0x80000001
-            mock_winreg.HKEY_LOCAL_MACHINE = 0x80000002
-            mock_winreg.OpenKey = self._mock_open_key([(runtime_guid, '0.0.0.0')])
-            mock_winreg.QueryValueEx = MagicMock(return_value=('0.0.0.0', 1))
-            result = _webview2_version()
-        self.assertEqual(result, 'not found')
-
-
-class TestDotnetVersion(unittest.TestCase):
-    """Tests for _dotnet_version() registry lookup."""
-
-    def test_dotnet_481(self):
-        """Release >= 533320 reports 4.8.1."""
-        with patch('usage_monitor_for_claude.verbose.winreg') as mock_winreg:
-            mock_key = MagicMock()
-            mock_winreg.OpenKey = MagicMock(return_value=mock_key)
-            mock_key.__enter__ = MagicMock(return_value=mock_key)
-            mock_key.__exit__ = MagicMock(return_value=False)
-            mock_winreg.QueryValueEx = MagicMock(return_value=(533509, 4))
-            result = _dotnet_version()
-        self.assertIn('4.8.1', result)
-        self.assertIn('533509', result)
-
-    def test_dotnet_462(self):
-        """Release >= 394802 reports 4.6.2."""
-        with patch('usage_monitor_for_claude.verbose.winreg') as mock_winreg:
-            mock_key = MagicMock()
-            mock_winreg.OpenKey = MagicMock(return_value=mock_key)
-            mock_key.__enter__ = MagicMock(return_value=mock_key)
-            mock_key.__exit__ = MagicMock(return_value=False)
-            mock_winreg.QueryValueEx = MagicMock(return_value=(394802, 4))
-            result = _dotnet_version()
-        self.assertIn('4.6.2', result)
-
-    def test_dotnet_below_46(self):
-        """Release below 393295 reports < 4.6."""
-        with patch('usage_monitor_for_claude.verbose.winreg') as mock_winreg:
-            mock_key = MagicMock()
-            mock_winreg.OpenKey = MagicMock(return_value=mock_key)
-            mock_key.__enter__ = MagicMock(return_value=mock_key)
-            mock_key.__exit__ = MagicMock(return_value=False)
-            mock_winreg.QueryValueEx = MagicMock(return_value=(300000, 4))
-            result = _dotnet_version()
-        self.assertIn('< 4.6', result)
-
-    def test_dotnet_not_found(self):
-        """Missing registry key returns 'not found'."""
-        with patch('usage_monitor_for_claude.verbose.winreg') as mock_winreg:
-            mock_winreg.OpenKey = MagicMock(side_effect=OSError)
-            result = _dotnet_version()
-        self.assertEqual(result, 'not found')
 
 
 class TestDpiInfo(unittest.TestCase):
@@ -366,8 +255,7 @@ class TestPrintStartupDiagnostics(unittest.TestCase):
         with patch('sys.stdout', buf), \
              patch('usage_monitor_for_claude.verbose.ctypes') as mock_ctypes, \
              patch('usage_monitor_for_claude.verbose.locale') as mock_locale, \
-             patch('usage_monitor_for_claude.verbose.platform') as mock_platform, \
-             patch('usage_monitor_for_claude.verbose.winreg') as mock_winreg:
+             patch('usage_monitor_for_claude.verbose.platform') as mock_platform:
             mock_platform.platform.return_value = 'Windows-11-10.0.26200-SP0'
             mock_platform.machine.return_value = 'AMD64'
             mock_ctypes.windll.shell32.IsUserAnAdmin.return_value = 0
@@ -379,14 +267,11 @@ class TestPrintStartupDiagnostics(unittest.TestCase):
             mock_ctypes.wintypes.RECT.return_value = MagicMock(left=0, top=0, right=1920, bottom=1040)
             mock_ctypes.byref = MagicMock()
             mock_locale.getlocale.return_value = ('en_US', 'cp1252')
-            mock_winreg.OpenKey = MagicMock(side_effect=OSError)
-            mock_winreg.HKEY_CURRENT_USER = 0x80000001
-            mock_winreg.HKEY_LOCAL_MACHINE = 0x80000002
 
             print_startup_diagnostics()
 
         output = buf.getvalue()
-        for section in ('System', 'Python', 'Locale', 'Display', 'Runtimes', 'Dependencies', 'Credentials'):
+        for section in ('System', 'Python', 'Locale', 'Display', 'Dependencies', 'Credentials'):
             with self.subTest(section=section):
                 self.assertIn(section, output)
 
@@ -396,8 +281,7 @@ class TestPrintStartupDiagnostics(unittest.TestCase):
         with patch('sys.stdout', buf), \
              patch('usage_monitor_for_claude.verbose.ctypes') as mock_ctypes, \
              patch('usage_monitor_for_claude.verbose.locale') as mock_locale, \
-             patch('usage_monitor_for_claude.verbose.platform') as mock_platform, \
-             patch('usage_monitor_for_claude.verbose.winreg') as mock_winreg:
+             patch('usage_monitor_for_claude.verbose.platform') as mock_platform:
             mock_platform.platform.return_value = 'Windows-11'
             mock_platform.machine.return_value = 'AMD64'
             mock_ctypes.windll.shell32.IsUserAnAdmin.return_value = 0
@@ -406,9 +290,6 @@ class TestPrintStartupDiagnostics(unittest.TestCase):
             mock_ctypes.windll.user32.GetSystemMetrics.side_effect = Exception
             mock_ctypes.wintypes.RECT.side_effect = Exception
             mock_locale.getlocale.return_value = (None, None)
-            mock_winreg.OpenKey = MagicMock(side_effect=OSError)
-            mock_winreg.HKEY_CURRENT_USER = 0x80000001
-            mock_winreg.HKEY_LOCAL_MACHINE = 0x80000002
 
             print_startup_diagnostics()
 

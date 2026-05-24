@@ -2,65 +2,74 @@
 Autostart
 ==========
 
-Manages Windows autostart via the ``HKCU\\...\\Run`` registry key.
+Manages Windows autostart by placing a shortcut in the user's Startup
+folder.  No registry access - per project policy, the registry is never
+used; all persistence is file-based.
 """
 from __future__ import annotations
 
+import os
+import subprocess
 import sys
-import winreg
+from pathlib import Path
 
-__all__ = ['AUTOSTART_REG_KEY', 'AUTOSTART_REG_NAME', 'is_autostart_enabled', 'set_autostart', 'sync_autostart_path']
+__all__ = ['is_autostart_enabled', 'set_autostart', 'sync_autostart_path']
 
-AUTOSTART_REG_KEY = r'Software\Microsoft\Windows\CurrentVersion\Run'
-AUTOSTART_REG_NAME = 'UsageMonitorForClaude'
+_SHORTCUT_NAME = 'ClaudeUsageMonitor.lnk'
+
+
+def _shortcut_path() -> Path:
+    """Return the path of the autostart shortcut in the Startup folder."""
+    appdata = os.environ.get('APPDATA', '')
+    return Path(appdata) / 'Microsoft' / 'Windows' / 'Start Menu' / 'Programs' / 'Startup' / _SHORTCUT_NAME
+
+
+def _ps_literal(value: str) -> str:
+    """Quote a string as a PowerShell single-quoted literal (doubling quotes)."""
+    return "'" + value.replace("'", "''") + "'"
 
 
 def is_autostart_enabled() -> bool:
-    """Check whether the app is registered to start with Windows.
-
-    Returns
-    -------
-    bool
-        ``True`` if a matching registry value exists under ``HKCU\\...\\Run``.
-    """
-    try:
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, AUTOSTART_REG_KEY) as key:
-            winreg.QueryValueEx(key, AUTOSTART_REG_NAME)
-            return True
-    except FileNotFoundError:
-        return False
+    """Return True if the Startup shortcut exists."""
+    return _shortcut_path().is_file()
 
 
 def set_autostart(enable: bool) -> None:
-    """Create or remove the autostart registry entry.
+    """Create or remove the Startup shortcut.
 
     Parameters
     ----------
     enable : bool
-        ``True`` to register autostart, ``False`` to remove it.
+        ``True`` to create the shortcut, ``False`` to remove it.
     """
-    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, AUTOSTART_REG_KEY, 0, winreg.KEY_SET_VALUE) as key:
-        if enable:
-            winreg.SetValueEx(key, AUTOSTART_REG_NAME, 0, winreg.REG_SZ, f'"{sys.executable}"')
-        else:
-            try:
-                winreg.DeleteValue(key, AUTOSTART_REG_NAME)
-            except FileNotFoundError:
-                pass
+    path = _shortcut_path()
+
+    if not enable:
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+        return
+
+    target = sys.executable
+    working_dir = str(Path(target).parent)
+    script = (
+        f'$s = (New-Object -ComObject WScript.Shell).CreateShortcut({_ps_literal(str(path))}); '
+        f'$s.TargetPath = {_ps_literal(target)}; '
+        f'$s.WorkingDirectory = {_ps_literal(working_dir)}; '
+        f'$s.Save()'
+    )
+    subprocess.run(
+        ['powershell', '-NoProfile', '-NonInteractive', '-Command', script],
+        creationflags=subprocess.CREATE_NO_WINDOW, check=False,
+    )
 
 
 def sync_autostart_path() -> None:
-    """Update the autostart registry path if the EXE has been moved.
+    """Recreate the shortcut for the current executable if autostart is on.
 
-    Compares the stored path with the current ``sys.executable`` and
-    silently updates the registry value when they differ.
+    The Startup shortcut stores an absolute path; if the executable has
+    been moved, recreating it keeps autostart pointing at the right file.
     """
-    try:
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, AUTOSTART_REG_KEY) as key:
-            stored, _ = winreg.QueryValueEx(key, AUTOSTART_REG_NAME)
-    except FileNotFoundError:
-        return
-
-    expected = f'"{sys.executable}"'
-    if stored != expected:
+    if is_autostart_enabled():
         set_autostart(True)

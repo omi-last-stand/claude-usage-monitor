@@ -19,8 +19,8 @@ from .i18n import T
 
 __all__ = ['ensure_single_instance', 'release_instance_lock']
 
-_MUTEX_NAME = 'UsageMonitorForClaude_SingleInstance'
-_PID_MAPPING_NAME = 'UsageMonitorForClaude_HolderPID'
+_MUTEX_NAME = 'ClaudeUsageMonitor_SingleInstance'
+_PID_MAPPING_NAME = 'ClaudeUsageMonitor_HolderPID'
 _ERROR_ALREADY_EXISTS = 0xB7
 _INVALID_HANDLE = ctypes.c_void_p(-1).value
 _PAGE_READWRITE = 0x04

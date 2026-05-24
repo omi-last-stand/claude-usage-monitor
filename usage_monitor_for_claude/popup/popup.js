@@ -2,6 +2,7 @@ let els;
 let statusState = {};
 let translations = {};
 let textTimerId = null;
+let pressScreenPos = null;
 
 /**
  * Set CSS custom properties for theme colors and inject translation strings.
@@ -33,6 +34,15 @@ function init(config) {
 
     document.getElementById('appVersion').textContent = config.app_version;
 
+    if (config.widget_mode) {
+        document.body.classList.add('widget', 'compact');
+        // Whole window is draggable (easy_drag). Distinguish a real click from
+        // the click that ends a drag, so moving the window doesn't also toggle.
+        document.body.addEventListener('pointerdown', onWidgetPointerDown);
+        document.body.addEventListener('click', onWidgetClick);
+        setupContextMenu();
+    }
+
     els = {
         accountSection: document.getElementById('accountSection'),
         emailRow: document.getElementById('emailRow'),
@@ -53,6 +63,71 @@ function init(config) {
 
     updateData(config.data);
     requestAnimationFrame(() => document.body.classList.add('open'));
+}
+
+/**
+ * Toggle between the compact and expanded view in widget mode.
+ *
+ * Clicks on interactive controls (close button, changelog link) are
+ * ignored so those keep their own behavior.
+ *
+ * @param {MouseEvent} event
+ */
+function onWidgetPointerDown(event) {
+    pressScreenPos = { x: event.screenX, y: event.screenY };
+}
+
+function onWidgetClick(event) {
+    if (event.target.closest('#closeBtn') || event.target.closest('#changelogLink') || event.target.closest('#contextMenu')) {
+        return;
+    }
+    // Ignore the click that ends a drag: if the pointer moved more than a few
+    // pixels between press and release, treat it as a move, not a toggle.
+    if (pressScreenPos) {
+        const dx = Math.abs(event.screenX - pressScreenPos.x);
+        const dy = Math.abs(event.screenY - pressScreenPos.y);
+        pressScreenPos = null;
+        if (dx > 4 || dy > 4) {
+            return;
+        }
+    }
+    document.body.classList.toggle('compact');
+}
+
+/**
+ * Wire up the right-click context menu (widget mode only):
+ * always-on-top toggle, settings, about, quit.
+ */
+function setupContextMenu() {
+    const menu = document.getElementById('contextMenu');
+    const aotCheck = document.querySelector('#menuAlwaysOnTop .menu-check');
+
+    document.body.addEventListener('contextmenu', (event) => {
+        event.preventDefault();
+        menu.classList.add('open');
+        menu.style.left = `${Math.min(event.clientX, window.innerWidth - menu.offsetWidth - 4)}px`;
+        menu.style.top = `${Math.min(event.clientY, window.innerHeight - menu.offsetHeight - 4)}px`;
+    });
+    document.addEventListener('click', () => menu.classList.remove('open'));
+
+    document.getElementById('menuAlwaysOnTop').addEventListener('click', () => {
+        Promise.resolve(pywebview.api.toggle_always_on_top()).then((on) => {
+            aotCheck.textContent = on ? '✓' : '';
+        });
+    });
+    document.getElementById('menuSettings').addEventListener('click', () => pywebview.api.open_settings());
+    document.getElementById('menuAbout').addEventListener('click', () => pywebview.api.show_about());
+    document.getElementById('menuQuit').addEventListener('click', () => pywebview.api.quit_app());
+}
+
+/**
+ * Close the right-click context menu. Called from Python on an outside click.
+ */
+function closeContextMenu() {
+    const menu = document.getElementById('contextMenu');
+    if (menu) {
+        menu.classList.remove('open');
+    }
 }
 
 /**

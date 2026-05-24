@@ -453,7 +453,7 @@ class TestInitConfig(unittest.TestCase):
     def test_top_level_keys(self):
         """Config has colors, t (translations), app_version, and data."""
         config = _init_config(_snap())
-        self.assertEqual(set(config.keys()), {'colors', 't', 'app_version', 'data'})
+        self.assertEqual(set(config.keys()), {'colors', 't', 'app_version', 'widget_mode', 'data'})
 
     def test_colors_from_settings(self):
         """Color values come from settings module constants."""
@@ -626,6 +626,10 @@ class TestResizeAndPosition(unittest.TestCase):
         popup = object.__new__(UsagePopup)
         popup.WIDTH = UsagePopup.WIDTH
         popup._popup_hwnd = 12345
+        # Normal (non-widget) popup: positions via _tray_position every call.
+        popup._widget_mode = False
+        popup._positioned = False
+        popup._saved_pos = None
 
         mock_window = MagicMock()
         popup._window = mock_window
@@ -689,6 +693,10 @@ class TestResizeAndPosition(unittest.TestCase):
         popup = object.__new__(UsagePopup)
         popup.WIDTH = UsagePopup.WIDTH
         popup._popup_hwnd = 12345
+        # Normal (non-widget) popup: positions via _tray_position every call.
+        popup._widget_mode = False
+        popup._positioned = False
+        popup._saved_pos = None
 
         mock_window = MagicMock()
         popup._window = mock_window

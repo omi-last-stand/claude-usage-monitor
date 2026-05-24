@@ -15,18 +15,9 @@ import locale
 import os
 import platform
 import sys
-import winreg
 from pathlib import Path
 
 __all__ = ['setup_console', 'print_startup_diagnostics', 'print_runtime_diagnostics']
-
-# WebView2 registry GUIDs (runtime, beta, dev, canary)
-_WEBVIEW2_GUIDS = [
-    ('{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}', 'Runtime'),
-    ('{2CD8A007-E189-409D-A2C8-9AF4EF3C72AA}', 'Beta'),
-    ('{0D50BFEC-CD6A-4F9A-964C-C7416E3ACB10}', 'Developer'),
-    ('{65C35B14-6C1D-4122-AC46-7148CC9D6497}', 'Canary'),
-]
 
 
 def setup_console() -> None:
@@ -58,44 +49,6 @@ def _package_version(name: str) -> str:
     try:
         return importlib.metadata.version(name)
     except importlib.metadata.PackageNotFoundError:
-        return 'not found'
-
-
-def _webview2_version() -> str:
-    """Read WebView2 runtime version from the registry."""
-    for guid, channel in _WEBVIEW2_GUIDS:
-        for root_key in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
-            for sub_path in (
-                rf'SOFTWARE\Microsoft\EdgeUpdate\Clients\{guid}',
-                rf'SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{guid}',
-            ):
-                try:
-                    with winreg.OpenKey(root_key, sub_path) as key:
-                        build, _ = winreg.QueryValueEx(key, 'pv')
-                        if build and build != '0.0.0.0':
-                            suffix = f' ({channel})' if channel != 'Runtime' else ''
-                            return f'{build}{suffix}'
-                except OSError:
-                    pass
-
-    return 'not found'
-
-
-def _dotnet_version() -> str:
-    """Read .NET Framework version from the registry."""
-    try:
-        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r'SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full') as key:
-            release, _ = winreg.QueryValueEx(key, 'Release')
-            # https://learn.microsoft.com/en-us/dotnet/framework/migration-guide/how-to-determine-which-versions-are-installed
-            version_map = [
-                (533320, '4.8.1'), (528040, '4.8'), (461808, '4.7.2'), (461308, '4.7.1'),
-                (460798, '4.7'), (394802, '4.6.2'), (394254, '4.6.1'), (393295, '4.6'),
-            ]
-            for min_release, version in version_map:
-                if release >= min_release:
-                    return f'{version} (release {release})'
-            return f'< 4.6 (release {release})'
-    except OSError:
         return 'not found'
 
 
@@ -209,11 +162,6 @@ def print_startup_diagnostics() -> None:
     _row('Monitors', monitor_count)
     _row('Primary resolution', primary)
     _row('Work area', work_area)
-
-    # Runtimes
-    _section('Runtimes')
-    _row('WebView2', _webview2_version())
-    _row('.NET Framework', _dotnet_version())
 
     # Dependencies
     _section('Dependencies')

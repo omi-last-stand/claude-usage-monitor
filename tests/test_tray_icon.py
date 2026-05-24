@@ -2,7 +2,7 @@
 Tray Icon Tests
 ================
 
-Unit tests for tray icon rendering and theme detection.
+Unit tests for tray icon rendering.
 """
 from __future__ import annotations
 
@@ -105,50 +105,6 @@ class TestLoadFont(unittest.TestCase):
         tray_icon_mod.load_font(42)
 
         mock_image_font.truetype.assert_called_once_with(r'C:\Windows\Fonts\arialbd.ttf', 42)
-
-
-class TestTaskbarUsesLightTheme(unittest.TestCase):
-    """Tests for taskbar_uses_light_theme()."""
-
-    @patch.object(tray_icon_mod, 'winreg')
-    def test_returns_true_for_light_theme(self, mock_winreg):
-        """Registry value 1 means light theme."""
-        mock_key = MagicMock()
-        mock_winreg.OpenKey.return_value.__enter__ = MagicMock(return_value=mock_key)
-        mock_winreg.OpenKey.return_value.__exit__ = MagicMock(return_value=False)
-        mock_winreg.QueryValueEx.return_value = (1, 4)
-
-        self.assertTrue(tray_icon_mod.taskbar_uses_light_theme())
-
-    @patch.object(tray_icon_mod, 'winreg')
-    def test_returns_false_for_dark_theme(self, mock_winreg):
-        """Registry value 0 means dark theme."""
-        mock_key = MagicMock()
-        mock_winreg.OpenKey.return_value.__enter__ = MagicMock(return_value=mock_key)
-        mock_winreg.OpenKey.return_value.__exit__ = MagicMock(return_value=False)
-        mock_winreg.QueryValueEx.return_value = (0, 4)
-
-        self.assertFalse(tray_icon_mod.taskbar_uses_light_theme())
-
-    @patch.object(tray_icon_mod, 'winreg')
-    def test_returns_false_on_os_error(self, mock_winreg):
-        """OSError (missing key, permissions) defaults to dark."""
-        mock_winreg.OpenKey.side_effect = OSError
-
-        self.assertFalse(tray_icon_mod.taskbar_uses_light_theme())
-
-    @patch.object(tray_icon_mod, 'winreg')
-    def test_reads_correct_registry_path(self, mock_winreg):
-        """Opens the Personalize registry key."""
-        mock_winreg.OpenKey.return_value.__enter__ = MagicMock()
-        mock_winreg.OpenKey.return_value.__exit__ = MagicMock(return_value=False)
-        mock_winreg.QueryValueEx.return_value = (0, 4)
-
-        tray_icon_mod.taskbar_uses_light_theme()
-
-        mock_winreg.OpenKey.assert_called_once_with(
-            mock_winreg.HKEY_CURRENT_USER, tray_icon_mod.THEME_REG_KEY,
-        )
 
 
 def _real_font():

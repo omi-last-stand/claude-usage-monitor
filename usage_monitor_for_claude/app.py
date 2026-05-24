@@ -25,14 +25,14 @@ from .claude_cli import PROJECT_URL
 from .command import run_event_command
 from .idle import get_idle_seconds, is_workstation_locked
 from .settings import (
-    ALERT_TIME_AWARE, ALERT_TIME_AWARE_BELOW, ICON_FIELDS, IDLE_PAUSE,
+    ALERT_TIME_AWARE, ALERT_TIME_AWARE_BELOW, ICON_FIELDS, IDLE_PAUSE, LIGHT_TASKBAR,
     ON_RESET_COMMAND, ON_STARTUP_COMMAND, ON_THRESHOLD_COMMAND,
-    POLL_ERROR, POLL_FAST, POLL_FAST_EXTRA, POLL_INTERVAL, get_alert_thresholds,
+    POLL_ERROR, POLL_FAST, POLL_FAST_EXTRA, POLL_INTERVAL, WIDGET_MODE, get_alert_thresholds,
 )
 from .formatting import elapsed_pct, field_period, format_credits, format_tooltip, parse_field_name, popup_label
 from .i18n import T
 from .popup import UsagePopup
-from .tray_icon import create_icon_image, create_status_image, taskbar_uses_light_theme, watch_theme_change
+from .tray_icon import create_icon_image, create_status_image
 
 __all__ = ['UsageMonitorForClaude', 'crash_log']
 
@@ -70,8 +70,8 @@ class UsageMonitorForClaude:
         self._popup_closed_at = 0.0
         self._next_poll_time: float | None = None
 
-        # Theme state
-        self._light_taskbar = taskbar_uses_light_theme()
+        # Theme state (from settings; registry auto-detection removed by policy)
+        self._light_taskbar = LIGHT_TASKBAR
 
         self.restart_requested = False
 
@@ -184,6 +184,10 @@ class UsageMonitorForClaude:
         self.running = False
         self.icon.stop()
 
+    def open_settings(self) -> None:
+        """Open the settings window. Placeholder until the settings UI is built."""
+        pass
+
     # Popup
 
     def _open_popup(self) -> None:
@@ -204,7 +208,7 @@ class UsageMonitorForClaude:
                     if needs_refresh:
                         self.update()
                 threading.Thread(target=_bg_refresh, daemon=True).start()
-            UsagePopup(self)
+            UsagePopup(self, widget_mode=WIDGET_MODE)
         finally:
             self._popup_closed_at = time.time()
             self._popup_open = False
@@ -238,16 +242,6 @@ class UsageMonitorForClaude:
                 extra_usage_available=extra_usage_available,
             )
         self.icon.title = format_tooltip(data)
-
-    def _on_theme_changed(self) -> None:
-        """Re-render the tray icon when the Windows theme changes."""
-        light = taskbar_uses_light_theme()
-        if light == self._light_taskbar:
-            return
-
-        self._light_taskbar = light
-        if self._last_response:
-            self._render_tray()
 
     # Update orchestration
 
@@ -676,7 +670,8 @@ class UsageMonitorForClaude:
                 sync_autostart_path()
             if not api_headers():
                 icon.notify(f"{T['warn_no_token']}\n{T['warn_login']}", T['popup_title'])
-            threading.Thread(target=watch_theme_change, args=(self._on_theme_changed,), daemon=True).start()
+            if WIDGET_MODE:
+                self.on_show_popup()
             self.poll_loop()
         except Exception:
             crash_log(traceback.format_exc())

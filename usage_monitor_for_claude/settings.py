@@ -29,10 +29,11 @@ __all__ = [
     'CURRENCY_SYMBOL',
     'FG', 'FG_DIM', 'FG_HEADING', 'FG_LINK',
     'ICON_DARK', 'ICON_FIELDS', 'ICON_LIGHT', 'IDLE_PAUSE',
-    'LANGUAGE', 'MAX_BACKOFF',
+    'LANGUAGE', 'LIGHT_TASKBAR', 'MAX_BACKOFF',
     'ON_RESET_COMMAND', 'ON_STARTUP_COMMAND', 'ON_THRESHOLD_COMMAND',
     'POLL_ERROR', 'POLL_FAST', 'POLL_FAST_EXTRA', 'POLL_INTERVAL',
     'POPUP_FIELDS', 'SETTINGS_FILENAME', 'TOOLTIP_FIELDS',
+    'WIDGET_HIDE_ACCOUNT', 'WIDGET_MODE',
     'get_alert_thresholds',
 ]
 
@@ -52,7 +53,7 @@ _THRESHOLD_KEY_PREFIX = 'alert_thresholds_'
 _PERCENT_KEYS = frozenset({'alert_time_aware_below'})
 _STRING_KEYS = frozenset({'currency_symbol', 'language'})
 _COMMAND_KEYS = frozenset({'on_reset_command', 'on_startup_command', 'on_threshold_command'})
-_BOOL_KEYS = frozenset({'alert_time_aware'})
+_BOOL_KEYS = frozenset({'alert_time_aware', 'widget_mode', 'widget_hide_account', 'light_taskbar'})
 _STRING_LIST_KEYS = frozenset({'tooltip_fields'})
 _WILDCARD_STRING_LIST_KEYS = frozenset({'popup_fields'})
 _VALID_BAR_MODES = frozenset({'utilization', 'overage'})
@@ -76,7 +77,7 @@ def _load_settings() -> dict:
     for path in search_paths:
         if path.is_file():
             try:
-                text = path.read_text(encoding='utf-8').strip()
+                text = path.read_text(encoding='utf-8-sig').strip()
                 if not text:
                     return {}
                 data = json.loads(text)
@@ -291,6 +292,14 @@ TOOLTIP_FIELDS: list[str] = _S.get('tooltip_fields', ['five_hour', 'seven_day'])
 
 # Popup fields
 POPUP_FIELDS: list[str] = _S.get('popup_fields', ['*'])
+
+# Widget mode: always-on-top resident widget that toggles compact/expanded on click
+WIDGET_MODE: bool = _S.get('widget_mode', False)
+WIDGET_HIDE_ACCOUNT: bool = _S.get('widget_hide_account', False)
+
+# Tray icon color theme (replaces registry-based auto-detection).
+# True = dark icon for a light taskbar; False = light icon for a dark taskbar.
+LIGHT_TASKBAR: bool = _S.get('light_taskbar', False)
 
 # Alert thresholds
 ALERT_TIME_AWARE: bool = _S.get('alert_time_aware', True)
