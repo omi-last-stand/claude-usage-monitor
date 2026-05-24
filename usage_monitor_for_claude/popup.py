@@ -25,7 +25,7 @@ from .formatting import elapsed_pct, expand_popup_fields, field_period, format_c
 from .i18n import T
 from .settings import BAR_BG, BAR_DIVIDER, BAR_FG, BAR_FG_WARN, BAR_MARKER, BG, FG, FG_DIM, FG_HEADING, FG_LINK, POPUP_FIELDS, WIDGET_HIDE_ACCOUNT, WIDGET_MODE
 from .task_dialog import show_info_dialog
-from .widget_state import load_widget_state, save_always_on_top, save_window_position
+from .widget_state import FIELD_HIDDEN, FIELD_VISIBLE, load_widget_state, save_always_on_top, save_window_position
 
 _POPUP_DIR = Path(__file__).parent / 'popup'
 _BASELINE_DPI = 96
@@ -56,15 +56,52 @@ if TYPE_CHECKING:
 # Data helpers
 # ---------------------------------------------------------------------------
 
-def _usage_entries(usage: dict[str, Any]) -> list[tuple[str, dict[str, Any] | None, int | None]]:
-    """Return the list of usage entry tuples from the given usage data."""
-    fields = expand_popup_fields(POPUP_FIELDS, usage)
-    return [(popup_label(key), usage.get(key), field_period(key)) for key in fields]
+def resolve_field_order(usage: dict[str, Any], field_states: dict[str, str]) -> list[tuple[str, str]]:
+    """Merge the saved per-field display states with the fields the API reports.
+
+    Returns ordered ``(key, state)`` pairs for every currently available
+    field except those marked hidden.  Saved entries set both the state and
+    the order; fields the user has not configured yet default to ``visible``
+    and follow in the usual sort order.  Saved entries for fields the API no
+    longer returns are dropped.
+    """
+    available = expand_popup_fields(['*'], usage)
+    available_set = set(available)
+    ordered: list[tuple[str, str]] = []
+    seen: set[str] = set()
+
+    for key, state in field_states.items():
+        if key in available_set and key not in seen:
+            seen.add(key)
+            if state != FIELD_HIDDEN:
+                ordered.append((key, state))
+
+    for key in available:
+        if key not in seen:
+            ordered.append((key, FIELD_VISIBLE))
+
+    return ordered
+
+
+def _usage_entries(
+    usage: dict[str, Any], field_states: dict[str, str] | None = None,
+) -> list[tuple[str, str, dict[str, Any] | None, int | None, str]]:
+    """Return ``(key, label, entry, period, state)`` tuples for the usage bars.
+
+    With *field_states* (the resident widget), fields are ordered and filtered
+    by the saved 3-state config and hidden fields are excluded.  Without it,
+    falls back to the ``POPUP_FIELDS`` setting with every field visible.
+    """
+    if field_states:
+        ordered = resolve_field_order(usage, field_states)
+    else:
+        ordered = [(key, FIELD_VISIBLE) for key in expand_popup_fields(POPUP_FIELDS, usage)]
+    return [(key, popup_label(key), usage.get(key), field_period(key), state) for key, state in ordered]
 
 
 def _snapshot_to_dict(
     snap: CacheSnapshot, installations: list[dict[str, str]] | None = None, next_poll_time: float | None = None,
-    *, hide_account: bool = False,
+    *, hide_account: bool = False, field_states: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Convert a CacheSnapshot to a JSON-serializable dict for the popup JS.
 
@@ -79,6 +116,10 @@ def _snapshot_to_dict(
     hide_account : bool
         When True, omit the account profile so the popup never renders the
         plan name or email.
+    field_states : dict[str, str] or None
+        Saved per-field display states for the resident widget.  When given,
+        usage bars are ordered and filtered accordingly (hidden fields are
+        omitted); when None, all available fields are shown.
     """
     # Profile - truthiness check (not `is not None`): hides the account section when the API
     # returns an empty or incomplete response, instead of rendering empty Email/Plan fields.
@@ -94,7 +135,7 @@ def _snapshot_to_dict(
     # Usage bars
     usage = []
     if snap.usage:
-        for label, entry, period in _usage_entries(snap.usage):
+        for key, label, entry, period, state in _usage_entries(snap.usage, field_states):
             if not entry or entry.get('utilization') is None:
                 continue
             pct = entry.get('utilization', 0) or 0
@@ -104,6 +145,8 @@ def _snapshot_to_dict(
             marker_rel = max(0.0, min(1.0, time_pct / 100)) if time_pct is not None else None
 
             usage.append({
+                'key': key,
+                'state': state,
                 'label': label,
                 'pct_text': f'{pct:.0f}%',
                 'fill_pct': max(0.0, min(1.0, pct / 100)),
@@ -157,7 +200,7 @@ def _snapshot_to_dict(
     }
 
 
-def _init_config(snap: CacheSnapshot, next_poll_time: float | None = None, *, always_on_top: bool = True) -> dict[str, Any]:
+def _init_config(snap: CacheSnapshot, next_poll_time: float | None = None, *, always_on_top: bool = True, field_states: dict[str, str] | None = None) -> dict[str, Any]:
     """Build the config object passed to JS ``init()`` after the page loads."""
     return {
         'colors': {
@@ -175,7 +218,7 @@ def _init_config(snap: CacheSnapshot, next_poll_time: float | None = None, *, al
         'app_version': __version__,
         'widget_mode': WIDGET_MODE,
         'always_on_top': always_on_top,
-        'data': _snapshot_to_dict(snap, next_poll_time=next_poll_time, hide_account=WIDGET_HIDE_ACCOUNT),
+        'data': _snapshot_to_dict(snap, next_poll_time=next_poll_time, hide_account=WIDGET_HIDE_ACCOUNT, field_states=field_states),
     }
 
 
@@ -256,12 +299,14 @@ class UsagePopup:
         # Resident widget: restore the last saved window position (logical pixels).
         self._saved_pos: tuple[int, int] | None = None
         self._positioned = False
+        self._field_states: dict[str, str] = {}
         if widget_mode:
             state = load_widget_state()
             if state.window_x is not None and state.window_y is not None:
                 self._saved_pos = (state.window_x, state.window_y)
             if state.always_on_top is not None:
                 self._always_on_top = state.always_on_top
+            self._field_states = state.field_states
 
         api = _PopupApi(self)
 
@@ -285,7 +330,7 @@ class UsagePopup:
 
     def _on_loaded(self) -> None:
         """Inject config and show the window transparently for layout."""
-        config = _init_config(self.app.cache.snapshot, next_poll_time=self.app._next_poll_time, always_on_top=self._always_on_top)
+        config = _init_config(self.app.cache.snapshot, next_poll_time=self.app._next_poll_time, always_on_top=self._always_on_top, field_states=self._field_states)
         self._window.evaluate_js(f'init({json.dumps(config)})')
 
         self._popup_hwnd = self._window.native.Handle.ToInt32()
@@ -538,13 +583,16 @@ class UsagePopup:
             try:
                 snap = self.app.cache.snapshot
                 next_poll_time = self.app._next_poll_time
-                if snap.version == self._last_version and next_poll_time == last_next_poll_time:
+                field_states = load_widget_state().field_states if self._widget_mode else {}
+                if (snap.version == self._last_version and next_poll_time == last_next_poll_time
+                        and field_states == self._field_states):
                     continue
                 if snap.version != self._last_version:
                     self._last_version = snap.version
                     cached_installations = [{'name': i.name, 'version': i.version} for i in find_installations()]
                 last_next_poll_time = next_poll_time
-                data = _snapshot_to_dict(snap, installations=cached_installations, next_poll_time=next_poll_time, hide_account=WIDGET_HIDE_ACCOUNT)
+                self._field_states = field_states
+                data = _snapshot_to_dict(snap, installations=cached_installations, next_poll_time=next_poll_time, hide_account=WIDGET_HIDE_ACCOUNT, field_states=field_states)
                 self._window.evaluate_js(f'updateData({json.dumps(data)})')
             except Exception:
                 break

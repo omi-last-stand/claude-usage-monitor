@@ -288,7 +288,11 @@ function formatCountdown(totalSeconds) {
 }
 
 function updateUsageBars(entries) {
-    if (entries.length !== els.usageBars.children.length) {
+    // Rebuild when the set or order of fields changes (count differs, or any
+    // slot's field key no longer matches); otherwise update bars in place.
+    const sameLayout = entries.length === els.usageBars.children.length
+        && entries.every((e, i) => els.usageBars.children[i].dataset.key === (e.key || ''));
+    if (!sameLayout) {
         els.usageBars.replaceChildren(...entries.map(createBarElement));
         requestAnimationFrame(() => {
             for (let i = 0; i < entries.length; i++) {
@@ -306,6 +310,8 @@ function updateUsageBars(entries) {
 function createBarElement(entry) {
     const div = document.createElement('div');
     div.className = 'usage-entry';
+    div.dataset.key = entry.key || '';
+    div.classList.toggle('state-collapsed', entry.state === 'collapsed');
 
     const header = document.createElement('div');
     header.className = 'bar-header';
@@ -351,6 +357,7 @@ function createBarElement(entry) {
 }
 
 function updateBarElement(div, entry) {
+    div.classList.toggle('state-collapsed', entry.state === 'collapsed');
     div.querySelector('.bar-pct').textContent = entry.pct_text;
 
     const fill = div.querySelector('.bar-fill');

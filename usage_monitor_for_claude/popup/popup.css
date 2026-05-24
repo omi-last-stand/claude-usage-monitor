@@ -201,6 +201,9 @@ body.widget.compact > section.visible {
     padding-top: 0;
 }
 
+/* 3-state fields: collapsed bars are revealed only in the expanded view. */
+body.widget.compact .usage-entry.state-collapsed { display: none; }
+
 /* Right-click context menu (widget mode) */
 .context-menu {
     display: none;

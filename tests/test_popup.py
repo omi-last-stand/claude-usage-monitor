@@ -35,7 +35,7 @@ def _snap(
 # ---------------------------------------------------------------------------
 
 class TestUsageEntries(unittest.TestCase):
-    """Tests for _usage_entries - extracts labelled tuples from usage dict."""
+    """Tests for _usage_entries - extracts (key, label, entry, period, state) tuples."""
 
     def test_returns_entries_for_active_fields(self):
         """Returns entries only for non-null fields with utilization."""
@@ -56,7 +56,7 @@ class TestUsageEntries(unittest.TestCase):
             'seven_day': {'utilization': 10, 'resets_at': '2026-01-07T00:00:00Z'},
         }
         entries = _usage_entries(usage)
-        labels = [e[0] for e in entries]
+        labels = [e[1] for e in entries]
         self.assertEqual(labels, [popup_label('five_hour'), popup_label('seven_day')])
 
     def test_periods_derived_from_field_name(self):
@@ -66,7 +66,7 @@ class TestUsageEntries(unittest.TestCase):
             'seven_day': {'utilization': 10, 'resets_at': '2026-01-07T00:00:00Z'},
         }
         entries = _usage_entries(usage)
-        periods = [e[2] for e in entries]
+        periods = [e[3] for e in entries]
         self.assertEqual(periods, [5 * 3600, 7 * 24 * 3600])
 
     def test_data_extraction(self):
@@ -77,8 +77,8 @@ class TestUsageEntries(unittest.TestCase):
 
         entries = _usage_entries(usage)
         self.assertEqual(len(entries), 2)
-        self.assertIs(entries[0][1], five_hour)
-        self.assertIs(entries[1][1], seven_day)
+        self.assertIs(entries[0][2], five_hour)
+        self.assertIs(entries[1][2], seven_day)
 
     def test_empty_usage_returns_empty(self):
         """Empty usage dict returns no entries."""
@@ -97,7 +97,7 @@ class TestUsageEntries(unittest.TestCase):
         }
         entries = _usage_entries(usage)
         self.assertEqual(len(entries), 1)
-        self.assertEqual(entries[0][1]['utilization'], 20)
+        self.assertEqual(entries[0][2]['utilization'], 20)
 
     @patch('usage_monitor_for_claude.popup.POPUP_FIELDS', ['fve_hour', 'seven_day'])
     def test_misspelled_popup_field_skipped(self):
@@ -108,7 +108,7 @@ class TestUsageEntries(unittest.TestCase):
         }
         entries = _usage_entries(usage)
         self.assertEqual(len(entries), 1)
-        self.assertEqual(entries[0][1]['utilization'], 20)
+        self.assertEqual(entries[0][2]['utilization'], 20)
 
     @patch('usage_monitor_for_claude.popup.POPUP_FIELDS', ['seven_day_sonnet'])
     def test_popup_field_pointing_to_null_skipped(self):
@@ -134,7 +134,60 @@ class TestUsageEntries(unittest.TestCase):
         }
         entries = _usage_entries(usage)
         self.assertEqual(len(entries), 1)
-        self.assertEqual(entries[0][1]['utilization'], 42)
+        self.assertEqual(entries[0][2]['utilization'], 42)
+
+    def test_keys_are_field_names(self):
+        """Each entry's first element is the API field key, in order."""
+        usage = {
+            'five_hour': {'utilization': 42, 'resets_at': '2026-01-01T00:00:00Z'},
+            'seven_day': {'utilization': 10, 'resets_at': '2026-01-07T00:00:00Z'},
+        }
+        self.assertEqual([e[0] for e in _usage_entries(usage)], ['five_hour', 'seven_day'])
+
+    def test_state_defaults_to_visible(self):
+        """Without saved field_states, every entry is visible."""
+        usage = {
+            'five_hour': {'utilization': 42, 'resets_at': '2026-01-01T00:00:00Z'},
+            'seven_day': {'utilization': 10, 'resets_at': '2026-01-07T00:00:00Z'},
+        }
+        self.assertEqual([e[4] for e in _usage_entries(usage)], ['visible', 'visible'])
+
+
+class TestUsageEntriesFieldStates(unittest.TestCase):
+    """Tests for _usage_entries with a saved 3-state field config."""
+
+    @staticmethod
+    def _usage():
+        return {
+            'five_hour': {'utilization': 42, 'resets_at': '2026-01-01T00:00:00Z'},
+            'seven_day': {'utilization': 10, 'resets_at': '2026-01-07T00:00:00Z'},
+        }
+
+    def test_states_applied(self):
+        """Saved states set each entry's state."""
+        entries = _usage_entries(self._usage(), {'five_hour': 'collapsed', 'seven_day': 'visible'})
+        self.assertEqual({e[0]: e[4] for e in entries}, {'five_hour': 'collapsed', 'seven_day': 'visible'})
+
+    def test_hidden_excluded(self):
+        """Fields marked hidden are dropped; unconfigured fields still show."""
+        keys = [e[0] for e in _usage_entries(self._usage(), {'five_hour': 'hidden'})]
+        self.assertNotIn('five_hour', keys)
+        self.assertIn('seven_day', keys)
+
+    def test_saved_order_respected(self):
+        """Entry order follows the saved field order."""
+        entries = _usage_entries(self._usage(), {'seven_day': 'visible', 'five_hour': 'visible'})
+        self.assertEqual([e[0] for e in entries], ['seven_day', 'five_hour'])
+
+    def test_unconfigured_fields_default_visible_and_appended(self):
+        """Fields absent from the config default to visible and follow the rest."""
+        entries = _usage_entries(self._usage(), {'seven_day': 'collapsed'})
+        self.assertEqual([(e[0], e[4]) for e in entries], [('seven_day', 'collapsed'), ('five_hour', 'visible')])
+
+    def test_stale_saved_field_dropped(self):
+        """A saved field the API no longer returns is ignored."""
+        keys = [e[0] for e in _usage_entries(self._usage(), {'opus': 'visible', 'five_hour': 'visible'})]
+        self.assertNotIn('opus', keys)
 
 
 # ---------------------------------------------------------------------------
