@@ -1,4 +1,4 @@
-# Claude Usage Monitor
+# <img src="docs/images/icon.png" alt="" width="32" align="top"> Claude Usage Monitor
 
 > Claudeの使用量を常時画面に表示する、常駐型のデスクトップウィジェット（Windows）。
 > A resident, always-on-top desktop widget that keeps your Claude usage on screen (Windows).
