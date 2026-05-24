@@ -98,7 +98,7 @@ def _usage_entries(
     by the saved 3-state config and hidden fields are excluded.  Without it,
     falls back to the ``POPUP_FIELDS`` setting with every field visible.
     """
-    if field_states:
+    if field_states is not None:
         ordered = resolve_field_order(usage, field_states)
     else:
         ordered = [(key, FIELD_VISIBLE) for key in expand_popup_fields(POPUP_FIELDS, usage)]
@@ -746,9 +746,11 @@ class UsagePopup:
         x = int(rect.left / scale)
         y = int(rect.top / scale)
 
-        # Ignore off-screen coordinates seen briefly at startup before the
-        # window is placed; saving them would hide the widget next launch.
-        if x < 0 or y < 0:
+        # Ignore positions that are off every monitor (e.g. the brief
+        # off-screen state at startup before the window is placed); saving
+        # them would hide the widget next launch. Negative coordinates on a
+        # monitor left of or above the primary are valid and do persist.
+        if not self._is_position_visible(x, y):
             return
 
         if self._saved_pos is not None and abs(self._saved_pos[0] - x) <= 2 and abs(self._saved_pos[1] - y) <= 2:

@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import configparser
 import sys
+import threading
 from pathlib import Path
 from typing import NamedTuple
 
@@ -35,6 +36,11 @@ _INI_FILENAME = 'ClaudeUsageMonitor.ini'
 _WINDOW_SECTION = 'window'
 _WIDGET_SECTION = 'widget'
 _FIELDS_SECTION = 'fields'
+
+# Serializes each read-modify-write cycle so concurrent saves from different
+# threads (window position, always-on-top toggle, settings window) cannot
+# overwrite each other's sections.
+_LOCK = threading.Lock()
 
 
 class WidgetState(NamedTuple):
@@ -91,7 +97,8 @@ def load_widget_state() -> WidgetState:
     Returns a ``WidgetState`` with ``None`` coordinates and an empty
     field map when the file is missing, unreadable, or incomplete.
     """
-    parser = _read()
+    with _LOCK:
+        parser = _read()
 
     try:
         window_x = parser.getint(_WINDOW_SECTION, 'x', fallback=None)
@@ -126,21 +133,23 @@ def _write(parser: configparser.ConfigParser) -> None:
 
 def save_window_position(x: int, y: int) -> None:
     """Persist the widget window position, preserving other settings."""
-    parser = _read()
-    if not parser.has_section(_WINDOW_SECTION):
-        parser.add_section(_WINDOW_SECTION)
-    parser.set(_WINDOW_SECTION, 'x', str(int(x)))
-    parser.set(_WINDOW_SECTION, 'y', str(int(y)))
-    _write(parser)
+    with _LOCK:
+        parser = _read()
+        if not parser.has_section(_WINDOW_SECTION):
+            parser.add_section(_WINDOW_SECTION)
+        parser.set(_WINDOW_SECTION, 'x', str(int(x)))
+        parser.set(_WINDOW_SECTION, 'y', str(int(y)))
+        _write(parser)
 
 
 def save_always_on_top(value: bool) -> None:
     """Persist the always-on-top preference, preserving other settings."""
-    parser = _read()
-    if not parser.has_section(_WIDGET_SECTION):
-        parser.add_section(_WIDGET_SECTION)
-    parser.set(_WIDGET_SECTION, 'always_on_top', 'true' if value else 'false')
-    _write(parser)
+    with _LOCK:
+        parser = _read()
+        if not parser.has_section(_WIDGET_SECTION):
+            parser.add_section(_WIDGET_SECTION)
+        parser.set(_WIDGET_SECTION, 'always_on_top', 'true' if value else 'false')
+        _write(parser)
 
 
 def save_field_config(ordered_states: list[tuple[str, str]]) -> None:
@@ -155,11 +164,12 @@ def save_field_config(ordered_states: list[tuple[str, str]]) -> None:
         Field name and display state pairs in display order.  Entries
         with an invalid state are skipped.
     """
-    parser = _read()
-    if parser.has_section(_FIELDS_SECTION):
-        parser.remove_section(_FIELDS_SECTION)
-    parser.add_section(_FIELDS_SECTION)
-    for name, state in ordered_states:
-        if state in VALID_FIELD_STATES:
-            parser.set(_FIELDS_SECTION, name, state)
-    _write(parser)
+    with _LOCK:
+        parser = _read()
+        if parser.has_section(_FIELDS_SECTION):
+            parser.remove_section(_FIELDS_SECTION)
+        parser.add_section(_FIELDS_SECTION)
+        for name, state in ordered_states:
+            if state in VALID_FIELD_STATES:
+                parser.set(_FIELDS_SECTION, name, state)
+        _write(parser)

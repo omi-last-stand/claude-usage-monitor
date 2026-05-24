@@ -71,6 +71,7 @@ class UsageMonitorForClaude:
         self._next_poll_time: float | None = None
 
         # Settings window state (one instance at a time)
+        self._settings_lock = threading.Lock()
         self._settings_open = False
 
         # Theme state (from settings; registry auto-detection removed by policy)
@@ -189,9 +190,10 @@ class UsageMonitorForClaude:
 
     def open_settings(self) -> None:
         """Open the field-selection settings window (one instance at a time)."""
-        if self._settings_open:
-            return
-        self._settings_open = True
+        with self._settings_lock:
+            if self._settings_open:
+                return
+            self._settings_open = True
         threading.Thread(target=self._open_settings_window, daemon=True).start()
 
     def _open_settings_window(self) -> None:
