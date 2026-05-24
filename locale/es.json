@@ -48,8 +48,8 @@
         "sáb",
         "dom"
     ],
-    "loading": "Usage Monitor: Cargando...",
-    "error_label": "Usage Monitor: Error",
+    "loading": "Claude Usage Monitor: Cargando...",
+    "error_label": "Claude Usage Monitor: Error",
     "connection_error": "No se pudo conectar con la API de Anthropic.",
     "http_error": "Error en la solicitud API (HTTP {code}).",
     "auth_expired": "Sesión expirada - abre Claude Code para iniciar sesión de nuevo.",
@@ -76,5 +76,5 @@
     "status_updated_s": "Actualizado hace {s}s",
     "status_next_update": "Próxima actualización en {duration}",
     "status_refreshing": "Actualizando...",
-    "already_running": "Usage Monitor for Claude v{running_version} ya se está ejecutando.\n\n¿Desea reemplazar la instancia en ejecución?"
+    "already_running": "Claude Usage Monitor v{running_version} ya se está ejecutando.\n\n¿Desea reemplazar la instancia en ejecución?"
 }

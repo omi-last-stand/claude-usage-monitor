@@ -48,8 +48,8 @@
         "周六",
         "周日"
     ],
-    "loading": "Usage Monitor: 加载中...",
-    "error_label": "Usage Monitor: 错误",
+    "loading": "Claude Usage Monitor: 加载中...",
+    "error_label": "Claude Usage Monitor: 错误",
     "connection_error": "无法连接到 Anthropic API。",
     "http_error": "API 请求失败 (HTTP {code})。",
     "auth_expired": "会话已过期 - 请打开 Claude Code 重新登录。",
@@ -76,5 +76,5 @@
     "status_updated_s": "{s}秒前更新",
     "status_next_update": "{duration}后更新",
     "status_refreshing": "刷新中...",
-    "already_running": "Usage Monitor for Claude v{running_version} 已在运行中。\n\n是否要替换正在运行的实例？"
+    "already_running": "Claude Usage Monitor v{running_version} 已在运行中。\n\n是否要替换正在运行的实例？"
 }

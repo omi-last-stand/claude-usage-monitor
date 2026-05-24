@@ -40,8 +40,8 @@
     "duration_m": "{m}m",
     "duration_s": "{s}s",
     "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-    "loading": "Usage Monitor: Loading...",
-    "error_label": "Usage Monitor: Error",
+    "loading": "Claude Usage Monitor: Loading...",
+    "error_label": "Claude Usage Monitor: Error",
     "connection_error": "Could not connect to Anthropic API.",
     "http_error": "API request failed (HTTP {code}).",
     "auth_expired": "Session expired - please open Claude Code to log in again.",
@@ -68,5 +68,5 @@
     "status_updated_s": "Updated {s}s ago",
     "status_next_update": "Next update in {duration}",
     "status_refreshing": "Refreshing...",
-    "already_running": "Usage Monitor for Claude v{running_version} is already running.\n\nDo you want to replace the running instance?"
+    "already_running": "Claude Usage Monitor v{running_version} is already running.\n\nDo you want to replace the running instance?"
 }

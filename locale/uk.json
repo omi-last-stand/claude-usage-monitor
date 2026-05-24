@@ -48,8 +48,8 @@
         "Сб",
         "Нд"
     ],
-    "loading": "Usage Monitor: Завантаження...",
-    "error_label": "Usage Monitor: Помилка",
+    "loading": "Claude Usage Monitor: Завантаження...",
+    "error_label": "Claude Usage Monitor: Помилка",
     "connection_error": "Не вдалося підключитися до Anthropic API.",
     "http_error": "Запит до API не вдався (HTTP {code}).",
     "auth_expired": "Сесія завершилася - будь ласка, відкрийте Claude Code, щоб увійти знову.",
@@ -76,5 +76,5 @@
     "status_updated_s": "Оновлено {s}с тому",
     "status_next_update": "Наступне оновлення через {duration}",
     "status_refreshing": "Оновлення...",
-    "already_running": "Usage Monitor for Claude v{running_version} вже запущено.\n\nБажаєте замінити запущений екземпляр?"
+    "already_running": "Claude Usage Monitor v{running_version} вже запущено.\n\nБажаєте замінити запущений екземпляр?"
 }
