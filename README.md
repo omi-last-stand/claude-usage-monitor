@@ -1,10 +1,10 @@
 # <img src="docs/images/icon.png" alt="" width="32" align="top"> Claude Usage Monitor
 
-> Claudeの使用量を常時画面に表示する、常駐型のデスクトップウィジェット（Windows）。
-> A resident, always-on-top desktop widget that keeps your Claude usage on screen (Windows).
+> Claudeのレート制限の使用量を常時画面に表示する、常駐型のデスクトップウィジェット（Windows）。
+> A resident, always-on-top desktop widget that keeps your Claude rate-limit usage on screen (Windows).
 
 <p align="center">
-  <img src="docs/images/claude-usage-monitor-demo-eng-preview.gif" width="640" alt="Demo: compact and expanded views, always on top">
+  <img src="docs/images/claude-usage-monitor-demo-eng.gif" width="640" alt="Demo: compact and expanded views, always on top">
   <br>
   <sub>コンパクト⇄拡大の切り替えと、常に前面に表示 / Compact ⇄ expanded, always on top</sub>
 </p>
