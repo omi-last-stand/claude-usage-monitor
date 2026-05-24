@@ -40,7 +40,7 @@ function init(config) {
         // the click that ends a drag, so moving the window doesn't also toggle.
         document.body.addEventListener('pointerdown', onWidgetPointerDown);
         document.body.addEventListener('click', onWidgetClick);
-        setupContextMenu();
+        setupContextMenu(config.always_on_top !== false);
     }
 
     els = {
@@ -97,10 +97,14 @@ function onWidgetClick(event) {
 /**
  * Wire up the right-click context menu (widget mode only):
  * always-on-top toggle, settings, about, quit.
+ *
+ * @param {boolean} alwaysOnTop - Initial always-on-top state, used to set
+ *   the menu checkmark to match the value restored from the INI file.
  */
-function setupContextMenu() {
+function setupContextMenu(alwaysOnTop) {
     const menu = document.getElementById('contextMenu');
     const aotCheck = document.querySelector('#menuAlwaysOnTop .menu-check');
+    aotCheck.textContent = alwaysOnTop ? '✓' : '';
 
     document.body.addEventListener('contextmenu', (event) => {
         event.preventDefault();

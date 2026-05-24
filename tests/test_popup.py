@@ -451,9 +451,17 @@ class TestInitConfig(unittest.TestCase):
     """Tests for _init_config - builds the JS init() config object."""
 
     def test_top_level_keys(self):
-        """Config has colors, t (translations), app_version, and data."""
+        """Config has colors, t, app_version, widget_mode, always_on_top, and data."""
         config = _init_config(_snap())
-        self.assertEqual(set(config.keys()), {'colors', 't', 'app_version', 'widget_mode', 'data'})
+        self.assertEqual(
+            set(config.keys()),
+            {'colors', 't', 'app_version', 'widget_mode', 'always_on_top', 'data'},
+        )
+
+    def test_always_on_top_reflects_argument(self):
+        """always_on_top defaults to True and mirrors the passed value."""
+        self.assertIs(_init_config(_snap())['always_on_top'], True)
+        self.assertIs(_init_config(_snap(), always_on_top=False)['always_on_top'], False)
 
     def test_colors_from_settings(self):
         """Color values come from settings module constants."""

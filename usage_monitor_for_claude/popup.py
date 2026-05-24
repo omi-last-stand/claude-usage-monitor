@@ -25,7 +25,7 @@ from .formatting import elapsed_pct, expand_popup_fields, field_period, format_c
 from .i18n import T
 from .settings import BAR_BG, BAR_DIVIDER, BAR_FG, BAR_FG_WARN, BAR_MARKER, BG, FG, FG_DIM, FG_HEADING, FG_LINK, POPUP_FIELDS, WIDGET_HIDE_ACCOUNT, WIDGET_MODE
 from .task_dialog import show_info_dialog
-from .widget_state import load_widget_state, save_window_position
+from .widget_state import load_widget_state, save_always_on_top, save_window_position
 
 _POPUP_DIR = Path(__file__).parent / 'popup'
 _BASELINE_DPI = 96
@@ -157,7 +157,7 @@ def _snapshot_to_dict(
     }
 
 
-def _init_config(snap: CacheSnapshot, next_poll_time: float | None = None) -> dict[str, Any]:
+def _init_config(snap: CacheSnapshot, next_poll_time: float | None = None, *, always_on_top: bool = True) -> dict[str, Any]:
     """Build the config object passed to JS ``init()`` after the page loads."""
     return {
         'colors': {
@@ -174,6 +174,7 @@ def _init_config(snap: CacheSnapshot, next_poll_time: float | None = None) -> di
         },
         'app_version': __version__,
         'widget_mode': WIDGET_MODE,
+        'always_on_top': always_on_top,
         'data': _snapshot_to_dict(snap, next_poll_time=next_poll_time, hide_account=WIDGET_HIDE_ACCOUNT),
     }
 
@@ -259,6 +260,8 @@ class UsagePopup:
             state = load_widget_state()
             if state.window_x is not None and state.window_y is not None:
                 self._saved_pos = (state.window_x, state.window_y)
+            if state.always_on_top is not None:
+                self._always_on_top = state.always_on_top
 
         api = _PopupApi(self)
 
@@ -267,7 +270,7 @@ class UsagePopup:
             width=self.WIDTH, height=initial_height,
             resizable=False, frameless=True, shadow=False,
             easy_drag=widget_mode,
-            on_top=True, hidden=True,
+            on_top=self._always_on_top, hidden=True,
             background_color=BG,
             js_api=api,
         )
@@ -282,7 +285,7 @@ class UsagePopup:
 
     def _on_loaded(self) -> None:
         """Inject config and show the window transparently for layout."""
-        config = _init_config(self.app.cache.snapshot, next_poll_time=self.app._next_poll_time)
+        config = _init_config(self.app.cache.snapshot, next_poll_time=self.app._next_poll_time, always_on_top=self._always_on_top)
         self._window.evaluate_js(f'init({json.dumps(config)})')
 
         self._popup_hwnd = self._window.native.Handle.ToInt32()
@@ -494,6 +497,7 @@ class UsagePopup:
             ctypes.wintypes.HWND(self._popup_hwnd), ctypes.wintypes.HWND(insert_after),
             0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE,
         )
+        save_always_on_top(self._always_on_top)
         return self._always_on_top
 
     def show_about(self) -> None:
