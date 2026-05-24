@@ -159,14 +159,20 @@ The Anthropic API does not include currency information, so the app detects the 
 |-----|---------|-------------|
 | `currency_symbol` | *(auto-detected)* | Override the auto-detected currency symbol (e.g., `"$"`, `"€"`, `"¥"`) |
 
-## Tray icon colors
+## Tray icon
 
-Override individual channels as RGBA arrays `[R, G, B, A]` (0-255). Unspecified keys keep their defaults.
+By default the tray icon uses light-colored glyphs, which suit a dark taskbar. If your taskbar is light, set `light_taskbar` to switch to dark glyphs. There is no automatic taskbar-theme detection - you choose with this setting.
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `icon_light` | `{"fg": [255,255,255,255], "fg_half": [255,255,255,80], "fg_dim": [255,255,255,140]}` | Light icons for dark taskbar |
-| `icon_dark` | `{"fg": [0,0,0,255], "fg_half": [0,0,0,80], "fg_dim": [0,0,0,140]}` | Dark icons for light taskbar |
+| `light_taskbar` | `false` | `true` if your Windows taskbar is light - the icon then uses the dark glyph set (`icon_dark`); `false` uses the light set (`icon_light`) for a dark taskbar |
+
+Override individual icon color channels as RGBA arrays `[R, G, B, A]` (0-255). Unspecified keys keep their defaults.
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `icon_light` | `{"fg": [255,255,255,255], "fg_half": [255,255,255,80], "fg_dim": [255,255,255,140]}` | Light glyphs, used when `light_taskbar` is `false` (dark taskbar) |
+| `icon_dark` | `{"fg": [0,0,0,255], "fg_half": [0,0,0,80], "fg_dim": [0,0,0,140]}` | Dark glyphs, used when `light_taskbar` is `true` (light taskbar) |
 
 ## Popup colors
 
@@ -182,3 +188,14 @@ Override individual channels as RGBA arrays `[R, G, B, A]` (0-255). Unspecified 
 | `bar_fg_warn` | `"#e05050"` | Progress bar fill when usage outpaces elapsed time, error text |
 | `bar_divider` | `"#000c"` | Midnight divider on weekly progress bars |
 | `bar_marker` | `"#fffc"` | Time-position marker on progress bars |
+
+## Widget
+
+Run the monitor as a resident, always-on-top desktop widget in addition to the tray icon.
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `widget_mode` | `false` | `true` opens a resident always-on-top widget at startup that stays on screen. Click it to toggle the compact/expanded view; right-click for its menu (always on top, settings, about, quit) |
+| `widget_hide_account` | `false` | `true` hides the account row (email and plan) in the widget |
+
+In widget mode the window position, the always-on-top state, and the per-field show / collapse / hide configuration are saved to `ClaudeUsageMonitor.ini` next to the EXE (managed through the widget's **Settings** window), not in this JSON file.

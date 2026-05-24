@@ -74,6 +74,8 @@ claude.ai・Claude Code・各IDE拡張で共有されるレート制限の残量
 
 「設定」を開くと、表示する使用量項目を選べます。各項目について「**隠す**」（コンパクト時は隠し、クリックで展開したときに表示）と「**非表示**」（常に表示しない）をチェックでき、行をドラッグして並び順を変更できます。
 
+ウィジェットとは別に、タスクトレイのアイコンを右クリックするとメニューが出ます（表示／Windows起動時に開始／イベントコマンドのテスト／再起動／GitHubで開く／終了）。設定ファイル（後述）を編集したあとは、この「**再起動**」で再読み込みします。
+
 ### 設定
 
 設定・状態は **exe と同じフォルダ** のファイルに保存します（レジストリは一切使いません）。どちらも任意で、無ければ既定値で動作します。
@@ -199,6 +201,8 @@ Claude Usage Monitor shows your Claude rate-limit usage on the desktop at a glan
 | **Click outside** the widget | Close an open right-click menu |
 
 Open **Settings** to choose which usage fields appear. For each field you can check **collapse** (hidden in the compact view, shown when expanded) and **hide** (never shown), and drag rows to reorder them.
+
+Separately from the widget, right-clicking the **system-tray icon** opens a menu: Show / Start with Windows / Test event commands / Restart / Project on GitHub / Quit. Use its **Restart** to reload the settings file after editing it.
 
 ### Configuration
 

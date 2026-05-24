@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Usage Monitor for Claude** is a local desktop application that monitors your Claude API usage.
+**Claude Usage Monitor** is a local desktop application that monitors your Claude API usage.
 
 ## Data Collection
 
@@ -21,8 +21,15 @@ The application reads your existing Claude OAuth token from the local Claude CLI
 
 ## Local Storage
 
-The application does not write any files. All usage data is kept in memory only and discarded when
-the application closes. An optional settings file (`usage-monitor-settings.json`) is read-only.
+The application writes one file, `ClaudeUsageMonitor.ini`, in the same folder as the executable. It
+stores only the widget's display state - window position, the always-on-top preference, and which
+usage fields are shown - and never contains credentials, account details, or usage values.
+
+If you enable "Start with Windows", the application also creates a shortcut in your Windows Startup
+folder, and removes it when you disable the option. No Windows Registry keys are written.
+
+Usage data itself is kept in memory only and discarded when the application closes. An optional,
+user-provided settings file (`usage-monitor-settings.json`) is only ever read, never written.
 
 ## Third-Party Services
 
@@ -31,4 +38,4 @@ The application does not integrate with any analytics, tracking, advertising, or
 ## Contact
 
 For questions about this privacy policy, please open an issue at
-https://github.com/jens-duttke/usage-monitor-for-claude/issues
+https://github.com/omi-last-stand/claude-usage-monitor/issues
