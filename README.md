@@ -8,6 +8,19 @@
 本アプリは Jens Duttke 氏の [Usage Monitor for Claude](https://github.com/jens-duttke/usage-monitor-for-claude) のフォークです。素晴らしい原作に深く感謝します。
 This app is a fork of [Usage Monitor for Claude](https://github.com/jens-duttke/usage-monitor-for-claude) by Jens Duttke. With sincere gratitude to the original work.
 
+### スクリーンショット / Screenshots
+
+<table>
+<tr>
+<td align="center" valign="top"><img src="docs/images/widget-compact.png" width="300" alt="Compact view"><br><sub><b>コンパクト表示</b>：使用量バーだけ<br><b>Compact</b>: just the usage bars</sub></td>
+<td align="center" valign="top"><img src="docs/images/widget-expanded.png" width="300" alt="Expanded view"><br><sub><b>クリックで展開</b>：詳細を表示<br><b>Click to expand</b>: full details</sub></td>
+</tr>
+<tr>
+<td align="center" valign="top"><img src="docs/images/widget-menu.png" width="300" alt="Right-click menu"><br><sub><b>右クリックメニュー</b><br><b>Right-click menu</b></sub></td>
+<td align="center" valign="top"><img src="docs/images/settings.png" width="300" alt="Settings window"><br><sub><b>設定ウィンドウ</b>：3状態＋並べ替え<br><b>Settings</b>: 3-state fields + reorder</sub></td>
+</tr>
+</table>
+
 ---
 
 <a id="日本語"></a>
