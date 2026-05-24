@@ -26,7 +26,7 @@ Run `git diff --staged` and critically review EVERY changed file:
 - No credentials in logs, error messages, or anywhere outside HTTP Authorization headers.
 - All URLs and API endpoints are top-level constants - no dynamic URL construction.
 - No `eval()`, `exec()`, `compile()`, or dynamic imports.
-- No file write operations (the app is read-only).
+- No credential or usage-data writes. The only file the app writes is its own widget-state INI (window position, always-on-top, field display) next to the EXE - never credentials.
 - No obfuscation, no base64-encoded strings, no encoded URLs or tokens.
 - Network communication exclusively with `api.anthropic.com`.
 

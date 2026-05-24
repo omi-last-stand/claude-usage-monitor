@@ -5,7 +5,7 @@ Prioritize readability and auditability - users handle credentials and must be a
 
 ## Platform
 - Windows-only application - no `sys.platform` checks or cross-platform guards needed
-- Windows APIs (`ctypes.windll`, `winreg`) can be used unconditionally
+- Windows APIs are used via `ctypes.windll`. This fork does not use the registry (`winreg`): autostart is a Startup-folder shortcut (`autostart.py`) and the tray-icon theme is the `light_taskbar` setting (no registry-based auto-detection)
 
 ## Popup Window & DPI
 - The popup uses pywebview with a WinForms host window and Edge WebView2
@@ -26,7 +26,7 @@ Prioritize readability and auditability - users handle credentials and must be a
 - All URLs and API endpoints as top-level constants - no dynamic URL construction
 - Network communication exclusively with `api.anthropic.com` - no other destinations
 - Credentials used only in HTTP Authorization headers - never log, store, or transmit elsewhere
-- No file write operations - the app is read-only
+- The only file the app writes is its widget-state INI (`ClaudeUsageMonitor.ini`) next to the EXE - window position, always-on-top, and field display config; never credentials, account details, or usage values. A Startup-folder shortcut is written only when autostart is enabled
 - No `eval()`, `exec()`, `compile()`, or dynamic imports - no dynamic code execution
 - No obfuscation - no base64-encoded strings, no encoded URLs or tokens
 - Modular package architecture in `usage_monitor_for_claude/` - small focused modules are easier to audit than one large file
