@@ -26,6 +26,7 @@ usage-monitor-settings.json
 
 # Widget runtime state (window position, written by the app)
 ClaudeUsageMonitor.ini
+claude-usage-monitor.ini
 
 # Stray tooling artifacts (not part of the app)
 .agents/
