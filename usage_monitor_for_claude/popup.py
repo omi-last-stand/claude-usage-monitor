@@ -24,6 +24,7 @@ from .claude_cli import CHANGELOG_URL, find_installations
 from .formatting import elapsed_pct, expand_popup_fields, field_period, format_credits, midnight_positions, popup_label, time_until
 from .i18n import T
 from .settings import BAR_BG, BAR_DIVIDER, BAR_FG, BAR_FG_WARN, BAR_MARKER, BG, FG, FG_DIM, FG_HEADING, FG_LINK, POPUP_FIELDS, WIDGET_HIDE_ACCOUNT, WIDGET_MODE
+from .task_dialog import show_info_dialog
 from .widget_state import load_widget_state, save_window_position
 
 _POPUP_DIR = Path(__file__).parent / 'popup'
@@ -496,20 +497,29 @@ class UsagePopup:
         return self._always_on_top
 
     def show_about(self) -> None:
-        """Show a version/about dialog that credits the upstream author."""
-        message = (
-            f'Claude Usage Monitor v{__version__}\n'
+        """Show a version/about dialog that credits the upstream author.
+
+        Rendered as a Win32 task dialog so the GitHub URLs are clickable
+        hyperlinks (the classic MessageBox can only show them as text).
+        """
+        heading = f'Claude Usage Monitor v{__version__}'
+        content = (
             'Claudeの使用量を常時表示する常駐ウィジェットです。\n\n'
-            'https://github.com/omi-last-stand/claude-usage-monitor\n\n'
+            '<a href="https://github.com/omi-last-stand/claude-usage-monitor">'
+            'https://github.com/omi-last-stand/claude-usage-monitor</a>\n\n'
             '【謝辞】\n'
-            'このアプリは、本家 Jens Duttke 氏の素晴らしい作品を\n'
-            'ベースにさせていただきました。心より感謝します。\n\n'
+            'このアプリは、本家 Jens Duttke 氏の素晴らしい作品をベースに'
+            'させていただきました。心より感謝します。\n\n'
             '[Acknowledgement]\n'
-            'This app is built upon the wonderful "Usage Monitor for Claude"\n'
+            'This app is built upon the wonderful "Usage Monitor for Claude" '
             'by Jens Duttke. With sincere gratitude.\n\n'
-            'https://github.com/jens-duttke/usage-monitor-for-claude'
+            '<a href="https://github.com/jens-duttke/usage-monitor-for-claude">'
+            'https://github.com/jens-duttke/usage-monitor-for-claude</a>'
         )
-        ctypes.windll.user32.MessageBoxW(self._popup_hwnd, message, 'バージョン情報', 0x40)
+        show_info_dialog(
+            self._popup_hwnd, 'バージョン情報', heading, content,
+            on_link=webbrowser.open,
+        )
 
     def _update_loop(self) -> None:
         """Poll for data changes and push updates to the popup."""
