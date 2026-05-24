@@ -3,6 +3,14 @@
 > Claudeの使用量を常時画面に表示する、常駐型のデスクトップウィジェット（Windows）。
 > A resident, always-on-top desktop widget that keeps your Claude usage on screen (Windows).
 
+## ダウンロード / Download
+
+最新の `ClaudeUsageMonitor.exe` は [Releases](https://github.com/omi-last-stand/claude-usage-monitor/releases) から入手できます。インストール不要で、単体のexeだけで動作します（設定・状態ファイルは任意）。自分でビルドする場合は下記「ソースからビルド」を参照してください。
+
+Get the latest `ClaudeUsageMonitor.exe` from the [Releases](https://github.com/omi-last-stand/claude-usage-monitor/releases) page. No installation - it runs as a single standalone EXE (settings/state files are optional). To build it yourself, see "Building from source" below.
+
+## 概要 / Overview
+
 **[日本語](#日本語) ・ [English](#english)**
 
 本アプリは Jens Duttke 氏の [Usage Monitor for Claude](https://github.com/jens-duttke/usage-monitor-for-claude) のフォークです。素晴らしい原作に深く感謝します。
