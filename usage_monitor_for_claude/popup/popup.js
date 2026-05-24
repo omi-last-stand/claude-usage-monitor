@@ -106,6 +106,11 @@ function setupContextMenu(alwaysOnTop) {
     const aotCheck = document.querySelector('#menuAlwaysOnTop .menu-check');
     aotCheck.textContent = alwaysOnTop ? '✓' : '';
 
+    document.querySelector('#menuAlwaysOnTop .menu-label').textContent = translations.menu_always_on_top;
+    document.querySelector('#menuSettings .menu-label').textContent = translations.menu_settings;
+    document.querySelector('#menuAbout .menu-label').textContent = translations.menu_about;
+    document.querySelector('#menuQuit .menu-label').textContent = translations.menu_quit;
+
     document.body.addEventListener('contextmenu', (event) => {
         event.preventDefault();
         menu.classList.add('open');

@@ -220,6 +220,8 @@ def _init_config(snap: CacheSnapshot, next_poll_time: float | None = None, *, al
             'status_updated_s': T['status_updated_s'], 'status_updated': T['status_updated'],
             'status_next_update': T['status_next_update'], 'status_refreshing': T['status_refreshing'],
             'duration_hm': T['duration_hm'], 'duration_m': T['duration_m'], 'duration_s': T['duration_s'],
+            'menu_always_on_top': T['always_on_top'], 'menu_settings': T['settings_title'],
+            'menu_about': T['about_title'], 'menu_quit': T['quit'],
         },
         'app_version': __version__,
         'widget_mode': WIDGET_MODE,
@@ -557,22 +559,17 @@ class UsagePopup:
         Rendered as a Win32 task dialog so the GitHub URLs are clickable
         hyperlinks (the classic MessageBox can only show them as text).
         """
+        fork_url = 'https://github.com/omi-last-stand/claude-usage-monitor'
+        upstream_url = 'https://github.com/jens-duttke/usage-monitor-for-claude'
         heading = f'Claude Usage Monitor v{__version__}'
         content = (
-            'Claudeの使用量を常時表示する常駐ウィジェットです。\n\n'
-            '<a href="https://github.com/omi-last-stand/claude-usage-monitor">'
-            'https://github.com/omi-last-stand/claude-usage-monitor</a>\n\n'
-            '【謝辞】\n'
-            'このアプリは、本家 Jens Duttke 氏の素晴らしい作品をベースに'
-            'させていただきました。心より感謝します。\n\n'
-            '[Acknowledgement]\n'
-            'This app is built upon the wonderful "Usage Monitor for Claude" '
-            'by Jens Duttke. With sincere gratitude.\n\n'
-            '<a href="https://github.com/jens-duttke/usage-monitor-for-claude">'
-            'https://github.com/jens-duttke/usage-monitor-for-claude</a>'
+            f'{T["about_description"]}\n\n'
+            f'<a href="{fork_url}">{fork_url}</a>\n\n'
+            f'{T["about_acknowledgement"]}\n\n'
+            f'<a href="{upstream_url}">{upstream_url}</a>'
         )
         show_info_dialog(
-            self._popup_hwnd, 'バージョン情報', heading, content,
+            self._popup_hwnd, T['about_title'], heading, content,
             on_link=webbrowser.open,
         )
 
@@ -793,7 +790,7 @@ class SettingsWindow:
     def __init__(self, app: UsageMonitorForClaude) -> None:
         self.app = app
         self._window = webview.create_window(
-            '設定',
+            T['settings_title'],
             url=str(_POPUP_DIR / 'settings.html'),
             width=self.WIDTH, height=self.HEIGHT,
             resizable=True, on_top=True,
@@ -809,6 +806,12 @@ class SettingsWindow:
             'colors': {
                 'bg': BG, 'fg': FG, 'fg_dim': FG_DIM, 'fg_heading': FG_HEADING,
                 'fg_link': FG_LINK, 'bar_bg': BAR_BG, 'bar_fg': BAR_FG,
+            },
+            't': {
+                'heading': T['settings_heading'], 'hint': T['settings_hint'],
+                'collapse': T['settings_collapse'], 'hide': T['settings_hide'],
+                'save': T['settings_save'], 'cancel': T['settings_cancel'],
+                'empty': T['settings_empty'],
             },
             'fields': self._current_fields(),
         }

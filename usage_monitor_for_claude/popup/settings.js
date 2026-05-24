@@ -1,5 +1,6 @@
 let fieldListEl;
 let draggedRow = null;
+let t = {};
 
 /**
  * Initialize the settings window: apply theme colors and render the field rows.
@@ -13,6 +14,13 @@ function initSettings(config) {
     for (const [key, value] of Object.entries(config.colors)) {
         s.setProperty(`--${key.replaceAll('_', '-')}`, value);
     }
+
+    t = config.t;
+    document.getElementById('heading').textContent = t.heading;
+    document.getElementById('hint').textContent = t.hint;
+    document.getElementById('saveBtn').textContent = t.save;
+    document.getElementById('cancelBtn').textContent = t.cancel;
+    document.getElementById('emptyHint').textContent = t.empty;
 
     fieldListEl = document.getElementById('fieldList');
 
@@ -54,7 +62,7 @@ function createFieldRow(field) {
     collapse.type = 'checkbox';
     collapse.className = 'chk-collapse';
     collapse.checked = field.state === 'collapsed';
-    collapseLabel.append(collapse, document.createTextNode('隠す'));
+    collapseLabel.append(collapse, document.createTextNode(t.collapse));
 
     const hideLabel = document.createElement('label');
     hideLabel.className = 'chk';
@@ -62,7 +70,7 @@ function createFieldRow(field) {
     hide.type = 'checkbox';
     hide.className = 'chk-hide';
     hide.checked = field.state === 'hidden';
-    hideLabel.append(hide, document.createTextNode('非表示'));
+    hideLabel.append(hide, document.createTextNode(t.hide));
 
     // "Hide" wins over "collapse": disable the collapse box while hidden.
     const syncCollapseEnabled = () => {
