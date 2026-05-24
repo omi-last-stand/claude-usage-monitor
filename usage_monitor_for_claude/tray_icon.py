@@ -2,21 +2,36 @@
 Tray Icon
 ==========
 
-Creates monochrome system tray icons.  Icon colors follow the
-``light_taskbar`` setting (no registry access - project policy).
+Creates monochrome system tray icons.  The glyph color follows the
+``light_taskbar`` setting, and a contrasting outline is added so the icon
+stays legible on both light and dark taskbars without detecting the system
+theme (no registry access - project policy).
 """
 from __future__ import annotations
 
 import functools
 import os
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from .settings import ICON_DARK, ICON_LIGHT
 
 __all__ = ['load_font', 'create_icon_image', 'create_status_image']
 
 TRANSPARENT = (0, 0, 0, 0)
+
+
+def _with_outline(img: Image.Image, outline_rgb: tuple[int, int, int], thickness: int) -> Image.Image:
+    """Add a solid outline of *outline_rgb* around the opaque pixels of *img*.
+
+    The monochrome content keeps its own color while a contrasting halo
+    defines its edges, so the icon reads on any taskbar background without
+    knowing the system theme.
+    """
+    halo_alpha = img.getchannel('A').filter(ImageFilter.MaxFilter(thickness * 2 + 1))
+    halo = Image.new('RGBA', img.size, (*outline_rgb, 255))
+    halo.putalpha(halo_alpha)
+    return Image.alpha_composite(halo, img)
 
 
 @functools.lru_cache(maxsize=None)
@@ -70,6 +85,7 @@ def create_icon_image(
     """
     colors = ICON_DARK if light_taskbar else ICON_LIGHT
     fg, fg_half = colors['fg'], colors['fg_half']
+    outline_rgb = (255, 255, 255) if light_taskbar else (0, 0, 0)
 
     S = 64
     img = Image.new('RGBA', (S, S), TRANSPARENT)
@@ -117,12 +133,13 @@ def create_icon_image(
             if fill_w > 0:
                 draw.rectangle([0, y, fill_w - 1, y + bar_h - 1], fill=fg)
 
-    return img
+    return _with_outline(img, outline_rgb, 3)
 
 
 def create_status_image(text: str, light_taskbar: bool = False) -> Image.Image:
     """Create monochrome centered-text icon for error/status states."""
     fg_dim = (ICON_DARK if light_taskbar else ICON_LIGHT)['fg_dim']
+    outline_rgb = (255, 255, 255) if light_taskbar else (0, 0, 0)
 
     S = 64
     img = Image.new('RGBA', (S, S), TRANSPARENT)
@@ -132,4 +149,4 @@ def create_status_image(text: str, light_taskbar: bool = False) -> Image.Image:
     tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
     draw.text(((S - tw) / 2 - bbox[0], (S - th) / 2 - bbox[1]), text, fill=fg_dim, font=font)
 
-    return img
+    return _with_outline(img, outline_rgb, 3)

@@ -320,8 +320,9 @@ class TestCreateIconImageOverageMode(unittest.TestCase):
             mid_y = bar_y + bar_h // 2
             # x=31 (last pixel of left half) should be filled (fg, alpha=255)
             self.assertEqual(pixels[31, mid_y][3], 255, f'Expected filled pixel at x=31, y={mid_y}')
-            # x=32 (first pixel of right half) should not be filled (bg, alpha<255)
-            self.assertNotEqual(pixels[32, mid_y][3], 255, f'Expected unfilled pixel at x=32, y={mid_y}')
+            # A pixel well into the right half stays unfilled (track, alpha < 255);
+            # sample clear of the fill edge, which now carries the icon's contrast outline.
+            self.assertNotEqual(pixels[48, mid_y][3], 255, f'Expected unfilled pixel at x=48, y={mid_y}')
 
     def test_full_bar_at_100_percent_usage(self):
         """100% usage fills the entire bar regardless of time_pct."""
